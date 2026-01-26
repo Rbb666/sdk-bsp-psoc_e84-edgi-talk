@@ -66,6 +66,9 @@ if GetDepend(['RT_USING_DAC']):
 if GetDepend(['BSP_USING_TIM']):
     src += ['drv_hwtimer.c']
 
+if GetDepend(['RT_USING_CAN']):
+    src += ['drv_canfd.c']
+
 path =  [cwd]
 path += [cwd + '/config']
 

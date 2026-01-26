@@ -88,6 +88,7 @@
 #define RT_USING_SERIAL
 #define RT_USING_SERIAL_V1
 #define RT_SERIAL_RB_BUFSZ 128
+#define RT_USING_CAN
 #define RT_USING_PIN
 
 /* Using USB */
@@ -213,6 +214,15 @@
 /* Micrium: Micrium software products porting for RT-Thread */
 
 /* end of Micrium: Micrium software products porting for RT-Thread */
+#define PKG_USING_CHERRYUSB
+#define PKG_CHERRYUSB_DEVICE
+#define PKG_CHERRYUSB_DEVICE_SPEED_HS
+#define PKG_CHERRYUSB_DEVICE_DWC2_CUSTOM
+#define PKG_CHERRYUSB_DEVICE_CDC_ACM
+#define CONFIG_USBDEV_REQUEST_BUFFER_LEN 512
+#define CONFIG_USBDEV_MSC_MAX_BUFSIZE 512
+#define PKG_CHERRYUSB_DEVICE_TEMPLATE_CDC_ACM
+#define PKG_USING_CHERRYUSB_V010502
 /* end of system packages */
 
 /* peripheral libraries and drivers */
@@ -254,6 +264,14 @@
 /* GD32 Drivers */
 
 /* end of GD32 Drivers */
+
+/* HPMicro SDK */
+
+/* end of HPMicro SDK */
+
+/* FT32 HAL & SDK Drivers */
+
+/* end of FT32 HAL & SDK Drivers */
 /* end of HAL & SDK Drivers */
 
 /* sensors drivers */
@@ -349,6 +367,8 @@
 #define BSP_USING_GPIO
 #define BSP_USING_UART
 #define BSP_USING_UART2
+#define BSP_USING_CAN
+#define BSP_USING_CANFD0
 /* end of On-chip Peripheral Drivers */
 
 /* Board extended module Drivers */

@@ -64,8 +64,8 @@ extern "C" {
 #define ioss_0_port_12_pin_3_HSIOM P12_3_TDM_TDM_TX_FSYNC0
 #define ioss_0_port_12_pin_4_HSIOM P12_4_SDHC0_CARD_DAT_3TO02
 #define ioss_0_port_12_pin_5_HSIOM P12_5_SDHC0_CARD_DAT_3TO03
-#define ioss_0_port_16_pin_0_HSIOM P16_0_SCB10_SPI_CLK
-#define ioss_0_port_16_pin_1_HSIOM P16_1_SCB10_SPI_MOSI
+#define ioss_0_port_16_pin_0_HSIOM P16_0_CANFD0_TTCAN_RX0
+#define ioss_0_port_16_pin_1_HSIOM P16_1_CANFD0_TTCAN_TX0
 #define ioss_0_port_16_pin_2_HSIOM P16_2_SCB10_SPI_MISO
 #define ioss_0_port_16_pin_3_HSIOM P16_3_SCB10_SPI_SELECT0
 #define ioss_0_port_16_pin_5_HSIOM P16_5_TCPWM0_LINE5

@@ -20,3 +20,12 @@ int main(void)
     return 0;
 }
 
+
+/* Register the EMAC device */
+// static int rt_hw_stm32_cherryusb_cdc_init(void)
+// {
+//     extern void cdc_acm_init(uint8_t busid, uintptr_t reg_base);
+//     cdc_acm_init(0, USBHS_BASE);
+//     return 0;
+// }
+// INIT_COMPONENT_EXPORT(rt_hw_stm32_cherryusb_cdc_init);

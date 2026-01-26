@@ -141,6 +141,20 @@ menu "On-chip Peripheral Drivers"
                 default n
         endif
 
+    menuconfig BSP_USING_CAN
+        bool "Enable CAN"
+        default n
+        select RT_USING_CAN
+        if BSP_USING_CAN
+            config BSP_USING_CANFD0
+                bool "Enable CANFD0"
+                default n
+
+            config BSP_USING_CANFD1
+                bool "Enable CANFD1"
+                default n
+        endif
+
     config BSP_USING_RTC
         bool "Enable RTC"
         select RT_USING_RTC
