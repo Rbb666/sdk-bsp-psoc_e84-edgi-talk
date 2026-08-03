@@ -40,3 +40,4 @@ settings/
 cconfig.h
 *.asm
 .worktrees/
+.w/
