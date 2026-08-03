@@ -39,3 +39,4 @@ settings/
 *.uvguix*
 cconfig.h
 *.asm
+.worktrees/
