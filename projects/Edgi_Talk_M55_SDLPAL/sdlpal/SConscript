@@ -1,0 +1,71 @@
+from building import *
+
+cwd = GetCurrentDir()
+upstream = cwd + '/upstream'
+
+core_sources = [
+    'battle.c',
+    'ending.c',
+    'fight.c',
+    'font.c',
+    'game.c',
+    'global.c',
+    'input.c',
+    'itemmenu.c',
+    'magicmenu.c',
+    'main.c',
+    'map.c',
+    'overlay.c',
+    'palcfg.c',
+    'palcommon.c',
+    'paldebug.c',
+    'palette.c',
+    'play.c',
+    'res.c',
+    'rngplay.c',
+    'scene.c',
+    'script.c',
+    'text.c',
+    'ui.c',
+    'uibattle.c',
+    'uigame.c',
+    'util.c',
+    'video.c',
+    'yj1.c',
+]
+
+src = [upstream + '/' + name for name in core_sources]
+src += [
+    upstream + '/sdl_compat/sdl_compat.c',
+    upstream + '/esp32s3/native_engine_shim/sdl_shim.c',
+    upstream + '/unix/contract_noaudio.c',
+]
+
+path = [
+    upstream,
+    upstream + '/sdl_compat',
+    upstream + '/esp32s3/native_engine_shim/include',
+    cwd + '/../platform',
+]
+
+defines = [
+    ('USE_SDL3', 0),
+    ('PAL_HEADLESS_SDL_SHIM', 1),
+    ('PAL_ENGINE_BRIDGE_REQUIRE_TARGET_HOOKS', 1),
+    ('PAL_SDL_SHIM_EXTERNAL_SURFACES_ONLY', 1),
+    ('PAL_SDL_SHIM_DYNAMIC_SURFACES', 1),
+    ('PAL_PSOC_DIRECT_INDEXED', 1),
+    ('PAL_CONTRACT_NO_AUDIO', 1),
+    ('PAL_NO_LAUNCH_UI', 1),
+    ('SHIM_MAX_SURFACES', 8),
+    ('SHIM_MAX_PALETTES', 8),
+    ('SHIM_MAX_TEXTURES', 1),
+    ('SHIM_KEYBOARD_KEYS', 256),
+    ('SHIM_EVENT_QUEUE', 8),
+]
+
+group = DefineGroup('SDLPalEngine', src, depend=[''], CPPPATH=path,
+                    CPPDEFINES=defines,
+                    LOCAL_CCFLAGS=' -fstack-usage -include pal_large_storage.h -include pal_engine_io_hooks.h')
+
+Return('group')
