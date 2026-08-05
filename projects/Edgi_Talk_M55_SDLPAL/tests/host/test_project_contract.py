@@ -165,9 +165,8 @@ class ProjectContractTest(unittest.TestCase):
         self.assertIn(".cy_gpu_buf.sdlpal_indexed", lcd_source)
         self.assertIn("static rt_bool_t vglite_failed = RT_FALSE;", lcd_source)
         self.assertIn("if (vglite_failed)", lcd_source)
-        self.assertIn("defined(BSP_USING_SDLPAL)", vg_lite_hal)
-        self.assertIn("#if _BAREMETAL", vg_lite_hal)
         self.assertIn("vg_lite_hal_free(device);", vg_lite_hal)
+        self.assertNotIn("BSP_USING_SDLPAL", vg_lite_hal)
         self.assertIn("__lcd_indexed_staging_start__", linker)
         self.assertIn("__lcd_indexed_staging_end__", linker)
         self.assertNotIn("BSP_USING_LVGL", display_port)
@@ -209,9 +208,8 @@ class ProjectContractTest(unittest.TestCase):
         self.assertIn("rt_size_t max_points = ST7102_MAX_TOUCH;", touch)
         self.assertIn("defined(ST7102_HOST_TEST)", touch)
 
-        self.assertIn("defined(BSP_USING_SDLPAL)", vg_hal)
-        self.assertIn("#if _BAREMETAL", vg_hal)
         self.assertIn("vg_lite_hal_free(device);", vg_hal)
+        self.assertNotIn("BSP_USING_SDLPAL", vg_hal)
 
     def test_hyperram_is_not_a_transparent_heap_fallback(self):
         config = (ROOT / ".config").read_text(encoding="utf-8")
