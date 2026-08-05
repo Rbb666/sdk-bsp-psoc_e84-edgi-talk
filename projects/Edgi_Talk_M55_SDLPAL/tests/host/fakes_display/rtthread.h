@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 typedef int rt_bool_t;
+typedef int rt_err_t;
 
 #define RT_NULL NULL
 #define RT_FALSE 0

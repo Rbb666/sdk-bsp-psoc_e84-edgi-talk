@@ -5,7 +5,7 @@
 
 #include <rtthread.h>
 
-#include "drv_lcd.h"
+#include "pal_lcd_api.h"
 
 #ifndef BSP_LCD_ROTATION_DEGREES
 #define BSP_LCD_ROTATION_DEGREES 0

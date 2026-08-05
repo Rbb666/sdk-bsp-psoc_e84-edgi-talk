@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "drv_lcd.h"
+#include "pal_lcd_api.h"
 #include "pal_display_port.h"
 
 #define TEST_SOURCE_PITCH (PAL_GAME_WIDTH + 8u)

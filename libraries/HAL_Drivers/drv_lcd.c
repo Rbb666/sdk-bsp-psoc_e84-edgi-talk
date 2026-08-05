@@ -54,6 +54,12 @@
 #else
 #define LCD_ROTATION_BACKEND_VGLITE 0
 #endif
+#if defined(BSP_USING_LVGL) || LCD_ROTATION_BACKEND_VGLITE || \
+    (defined(BSP_USING_SDLPAL) && defined(BSP_LCD_VGLITE_INDEXED))
+#define LCD_VGLITE_REQUIRED 1
+#else
+#define LCD_VGLITE_REQUIRED 0
+#endif
 #define LCD_MIPI_HFP_PIXELS 86
 #define LCD_MIPI_HBP_PIXELS 87
 #define LCD_MIPI_HSYNC_WIDTH_PIXELS 2
@@ -140,6 +146,12 @@
                                  (APP_BUFFER_COUNT)) + \
                                  ((GPU_TESSELLATION_BUFFER_SIZE) * \
                                  (APP_BUFFER_COUNT)))
+#if defined(BSP_USING_SDLPAL) && defined(BSP_LCD_VGLITE_INDEXED)
+#define LCD_INDEXED_WIDTH        320U
+#define LCD_INDEXED_HEIGHT       200U
+#define LCD_INDEXED_STRIDE       LCD_INDEXED_WIDTH
+#define LCD_INDEXED_BUFFER_SIZE  (LCD_INDEXED_STRIDE * LCD_INDEXED_HEIGHT)
+#endif
 CY_SECTION(".cy_gpu_buf") CY_ALIGN(__SCB_DCACHE_LINE_SIZE) uint8_t contiguous_mem[VGLITE_HEAP_SIZE] = { 0xFF };
 volatile void *vglite_heap_base = &contiguous_mem;
 
@@ -153,6 +165,11 @@ static uint8_t *graphics_buffer = &graphics_storage[LCD_VISIBLE_X_OFFSET_BYTES];
 
 #if LCD_NEEDS_SCANOUT_BUFFER
 CY_SECTION(".cy_gpu_buf") CY_ALIGN(__SCB_DCACHE_LINE_SIZE) static uint8_t graphics_scanout_storage[LCD_SCANOUT_BUF_SIZE] = {0x00};
+#endif
+
+#if defined(BSP_USING_SDLPAL) && defined(BSP_LCD_VGLITE_INDEXED)
+CY_SECTION(".cy_gpu_buf.sdlpal_indexed") CY_ALIGN(__SCB_DCACHE_LINE_SIZE)
+static uint8_t graphics_indexed_storage[LCD_INDEXED_BUFFER_SIZE];
 #endif
 
 #if LCD_USE_AXIDMAC_AREA_COPY
@@ -286,7 +303,11 @@ static void lcd_apply_runtime_gfxss_config(void)
     GFXSS_config.mipi_dsi_cfg = &GFXSS_mipi_dsi_config;
 }
 
-#if LCD_NEEDS_SCANOUT_BUFFER
+#if LCD_VGLITE_REQUIRED
+static rt_err_t lcd_vglite_init_once(void);
+
+#if LCD_NEEDS_SCANOUT_BUFFER || \
+    (defined(BSP_USING_SDLPAL) && defined(BSP_LCD_VGLITE_INDEXED))
 static void lcd_vglite_buffer_init(vg_lite_buffer_t *buffer, void *memory,
                                    uint32_t width, uint32_t height, uint32_t stride_pixels)
 {
@@ -294,7 +315,11 @@ static void lcd_vglite_buffer_init(vg_lite_buffer_t *buffer, void *memory,
     buffer->width = width;
     buffer->height = height;
     buffer->stride = stride_pixels * (LCD_BITS_PER_PIXEL / 8);
+#ifdef BSP_USING_SDLPAL
+    buffer->format = VG_LITE_BGR565;
+#else
     buffer->format = VG_LITE_RGB565;
+#endif
     buffer->tiled = VG_LITE_LINEAR;
     buffer->image_mode = VG_LITE_NORMAL_IMAGE_MODE;
     buffer->transparency_mode = VG_LITE_IMAGE_OPAQUE;
@@ -302,6 +327,7 @@ static void lcd_vglite_buffer_init(vg_lite_buffer_t *buffer, void *memory,
     buffer->address = (uint32_t)(uintptr_t)memory;
 }
 
+#if LCD_NEEDS_SCANOUT_BUFFER
 static vg_lite_error_t lcd_vglite_build_rotation_matrix(vg_lite_matrix_t *matrix,
                                                         uint32_t src_width,
                                                         uint32_t src_height)
@@ -419,6 +445,8 @@ static rt_bool_t lcd_vglite_rotate_to_scanout(const void *source_pixels,
 
     return RT_TRUE;
 }
+#endif
+#endif
 #endif
 
 static void lcd_dcache_clean_range(const void *addr, uint32_t size)
@@ -693,6 +721,128 @@ void lcd_flush_rgb565_area(const void *pixels, uint32_t x, uint32_t y,
     }
 }
 
+#if defined(BSP_USING_SDLPAL) && defined(BSP_LCD_VGLITE_INDEXED)
+static rt_bool_t lcd_indexed_vglite_failed(const char *stage,
+                                           vg_lite_error_t status)
+{
+    static rt_bool_t error_logged = RT_FALSE;
+
+    if (!error_logged)
+    {
+        LOG_W("VG-Lite indexed %s failed: %d", stage, status);
+        error_logged = RT_TRUE;
+    }
+    return RT_FALSE;
+}
+
+rt_bool_t lcd_blit_indexed8(const void *pixels,
+                            uint32_t width, uint32_t height,
+                            uint32_t src_stride,
+                            const uint32_t *clut,
+                            uint32_t x, uint32_t y,
+                            uint32_t dst_width, uint32_t dst_height,
+                            rt_bool_t present)
+{
+    const uint8_t *src_pixels = (const uint8_t *)pixels;
+    vg_lite_buffer_t src;
+    vg_lite_buffer_t dst;
+    vg_lite_matrix_t matrix;
+    vg_lite_error_t status;
+    uint32_t row;
+
+    if ((src_pixels == RT_NULL) || (clut == RT_NULL) ||
+        (width != LCD_INDEXED_WIDTH) ||
+        (height != LCD_INDEXED_HEIGHT) ||
+        (src_stride < LCD_INDEXED_STRIDE) ||
+        (dst_width == 0U) || (dst_height == 0U) ||
+        (x >= LCD_LOGICAL_WIDTH) || (y >= LCD_LOGICAL_HEIGHT) ||
+        (dst_width > (LCD_LOGICAL_WIDTH - x)) ||
+        (dst_height > (LCD_LOGICAL_HEIGHT - y)))
+    {
+        return RT_FALSE;
+    }
+
+    if (src_stride == LCD_INDEXED_STRIDE)
+    {
+        memcpy(graphics_indexed_storage, src_pixels,
+               LCD_INDEXED_BUFFER_SIZE);
+    }
+    else
+    {
+        for (row = 0U; row < LCD_INDEXED_HEIGHT; ++row)
+        {
+            memcpy(&graphics_indexed_storage[row * LCD_INDEXED_STRIDE],
+                   &src_pixels[row * src_stride], LCD_INDEXED_STRIDE);
+        }
+    }
+
+    if (lcd_vglite_init_once() != RT_EOK)
+    {
+        return RT_FALSE;
+    }
+
+    memset(&src, 0, sizeof(src));
+    src.width = LCD_INDEXED_WIDTH;
+    src.height = LCD_INDEXED_HEIGHT;
+    src.stride = LCD_INDEXED_STRIDE;
+    src.format = VG_LITE_INDEX_8;
+    src.tiled = VG_LITE_LINEAR;
+    src.image_mode = VG_LITE_NORMAL_IMAGE_MODE;
+    src.transparency_mode = VG_LITE_IMAGE_OPAQUE;
+    src.memory = graphics_indexed_storage;
+    src.address = (uint32_t)(uintptr_t)graphics_indexed_storage;
+
+    lcd_vglite_buffer_init(&dst, lcd_render_framebuffer(),
+                           LCD_LOGICAL_WIDTH, LCD_LOGICAL_HEIGHT,
+                           LCD_RENDER_STRIDE);
+
+    status = vg_lite_identity(&matrix);
+    if (status == VG_LITE_SUCCESS)
+    {
+        status = vg_lite_translate((vg_lite_float_t)x,
+                                   (vg_lite_float_t)y, &matrix);
+    }
+    if (status == VG_LITE_SUCCESS)
+    {
+        status = vg_lite_scale((vg_lite_float_t)dst_width /
+                               (vg_lite_float_t)LCD_INDEXED_WIDTH,
+                               (vg_lite_float_t)dst_height /
+                               (vg_lite_float_t)LCD_INDEXED_HEIGHT,
+                               &matrix);
+    }
+    if (status != VG_LITE_SUCCESS)
+    {
+        return lcd_indexed_vglite_failed("matrix", status);
+    }
+
+    status = vg_lite_set_CLUT(256U,
+                              (vg_lite_uint32_t *)(uintptr_t)clut);
+    if (status != VG_LITE_SUCCESS)
+    {
+        return lcd_indexed_vglite_failed("CLUT", status);
+    }
+
+    status = vg_lite_blit(&dst, &src, &matrix, VG_LITE_BLEND_NONE,
+                          0U, VG_LITE_FILTER_POINT);
+    if (status != VG_LITE_SUCCESS)
+    {
+        return lcd_indexed_vglite_failed("blit", status);
+    }
+
+    status = vg_lite_finish();
+    if (status != VG_LITE_SUCCESS)
+    {
+        return lcd_indexed_vglite_failed("finish", status);
+    }
+
+    if (present)
+    {
+        lcd_present_framebuffer();
+    }
+    return RT_TRUE;
+}
+#endif
+
 struct drv_lcd_device
 {
     struct rt_device parent;
@@ -875,10 +1025,13 @@ static void gpu_irq_handler(void)
     rt_interrupt_leave();
 }
 
-#if defined(BSP_USING_LVGL) || LCD_ROTATION_BACKEND_VGLITE
+#if LCD_VGLITE_REQUIRED
 static rt_err_t lcd_vglite_init_once(void)
 {
     static rt_bool_t vglite_ready = RT_FALSE;
+#ifdef BSP_USING_SDLPAL
+    static rt_bool_t vglite_failed = RT_FALSE;
+#endif
     vg_lite_error_t vglite_status;
     vg_module_parameters_t vg_params;
 
@@ -886,7 +1039,16 @@ static rt_err_t lcd_vglite_init_once(void)
     {
         return RT_EOK;
     }
+#ifdef BSP_USING_SDLPAL
+    if (vglite_failed)
+    {
+        return -RT_ERROR;
+    }
+#endif
 
+#ifdef BSP_USING_SDLPAL
+    memset(&vg_params, 0, sizeof(vg_params));
+#endif
     vg_params.register_mem_base = (uint32_t)GFXSS_GFXSS_GPU_GCNANO;
     vg_params.gpu_mem_base[VG_PARAMS_POS] = GPU_MEM_BASE;
     vg_params.contiguous_mem_base[VG_PARAMS_POS] = (volatile void *)vglite_heap_base;
@@ -897,6 +1059,9 @@ static rt_err_t lcd_vglite_init_once(void)
                                  (LCD_LOGICAL_HEIGHT) / 4);
     if (vglite_status != VG_LITE_SUCCESS)
     {
+#ifdef BSP_USING_SDLPAL
+        vglite_failed = RT_TRUE;
+#endif
         LOG_E("VG-Lite init failed: %d", vglite_status);
         return -RT_ERROR;
     }

@@ -45,6 +45,10 @@ class ProjectContractTest(unittest.TestCase):
 
     def test_target_contract(self):
         sconstruct = (ROOT / "SConstruct").read_text(encoding="utf-8")
+        project_kconfig = (ROOT / "Kconfig").read_text(encoding="utf-8")
+        shared_kconfig = (
+            BSP_ROOT / "libraries" / "M55_Config" / "Kconfig"
+        ).read_text(encoding="utf-8")
         config = (ROOT / ".config").read_text(encoding="utf-8")
         rtconfig = (ROOT / "rtconfig.h").read_text(encoding="utf-8")
         application = (ROOT / "applications" / "main.c").read_text(
@@ -53,9 +57,9 @@ class ProjectContractTest(unittest.TestCase):
         linker = (
             ROOT / "board" / "linker_scripts" / "link.ld"
         ).read_text(encoding="utf-8")
-        lcd_header = (
-            BSP_ROOT / "libraries" / "HAL_Drivers" / "drv_lcd.h"
-        ).read_text(encoding="utf-8")
+        lcd_header_path = ROOT / "platform" / "pal_lcd_api.h"
+        self.assertTrue(lcd_header_path.is_file())
+        lcd_header = lcd_header_path.read_text(encoding="utf-8")
         lcd_source = (
             BSP_ROOT / "libraries" / "HAL_Drivers" / "drv_lcd.c"
         ).read_text(encoding="utf-8")
@@ -93,6 +97,15 @@ class ProjectContractTest(unittest.TestCase):
         self.assertIn("__sdlpal_thread_end__", linker)
 
         self.assertNotIn("lvgl_9.2.0/SConscript", sconstruct)
+        self.assertIn("env.Append(CPPFLAGS=['-include', 'rtconfig.h'])", sconstruct)
+        self.assertIn("config BSP_USING_SDLPAL", project_kconfig)
+        self.assertIn("config BSP_LCD_VGLITE_INDEXED", project_kconfig)
+        self.assertNotIn("config BSP_LCD_VGLITE_INDEXED", shared_kconfig)
+        self.assertIn("CONFIG_BSP_USING_SDLPAL=y", config)
+        self.assertIn("#define BSP_USING_SDLPAL", rtconfig)
+        self.assertFalse(
+            (BSP_ROOT / "libraries" / "HAL_Drivers" / "drv_lcd.h").exists()
+        )
         self.assertNotIn("CONFIG_USING_LVGL=y", config)
         self.assertNotIn("CONFIG_BSP_USING_LVGL=y", config)
         self.assertIn("CONFIG_RT_USING_RTC=y", config)
@@ -152,13 +165,53 @@ class ProjectContractTest(unittest.TestCase):
         self.assertIn(".cy_gpu_buf.sdlpal_indexed", lcd_source)
         self.assertIn("static rt_bool_t vglite_failed = RT_FALSE;", lcd_source)
         self.assertIn("if (vglite_failed)", lcd_source)
-        self.assertIn(
-            "#if !_BAREMETAL\n        vg_lite_hal_free(device);\n#endif",
-            vg_lite_hal,
-        )
+        self.assertIn("defined(BSP_USING_SDLPAL)", vg_lite_hal)
+        self.assertIn("#if _BAREMETAL", vg_lite_hal)
+        self.assertIn("vg_lite_hal_free(device);", vg_lite_hal)
         self.assertIn("__lcd_indexed_staging_start__", linker)
         self.assertIn("__lcd_indexed_staging_end__", linker)
         self.assertNotIn("BSP_USING_LVGL", display_port)
+
+    def test_shared_changes_are_sdlpal_guarded(self):
+        lcd = (
+            BSP_ROOT / "libraries" / "HAL_Drivers" / "drv_lcd.c"
+        ).read_text(encoding="utf-8")
+        touch = (
+            BSP_ROOT
+            / "libraries"
+            / "Common"
+            / "board"
+            / "ports"
+            / "display_panels"
+            / "drv_touch.c"
+        ).read_text(encoding="utf-8")
+        vg_hal = (
+            BSP_ROOT
+            / "libraries"
+            / "components"
+            / "mtb-device-support-pse8xxgp"
+            / "pdl"
+            / "drivers"
+            / "third_party"
+            / "COMPONENT_GFXSS"
+            / "vsi"
+            / "gcnano"
+            / "vg_lite_hal.c"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("defined(BSP_USING_SDLPAL)", lcd)
+        self.assertIn("defined(BSP_LCD_VGLITE_INDEXED)", lcd)
+        self.assertIn("#ifdef BSP_USING_SDLPAL", lcd)
+        self.assertIn("buffer->format = VG_LITE_RGB565;", lcd)
+
+        self.assertIn("defined(BSP_USING_SDLPAL)", touch)
+        self.assertIn("#else", touch)
+        self.assertIn("rt_size_t max_points = ST7102_MAX_TOUCH;", touch)
+        self.assertIn("defined(ST7102_HOST_TEST)", touch)
+
+        self.assertIn("defined(BSP_USING_SDLPAL)", vg_hal)
+        self.assertIn("#if _BAREMETAL", vg_hal)
+        self.assertIn("vg_lite_hal_free(device);", vg_hal)
 
     def test_hyperram_is_not_a_transparent_heap_fallback(self):
         config = (ROOT / ".config").read_text(encoding="utf-8")
@@ -312,11 +365,9 @@ class ProjectContractTest(unittest.TestCase):
             encoding="utf-8"
         )
 
-        self.assertIn(
-            "#define LCD_VGLITE_RGB565_FORMAT VG_LITE_BGR565", lcd_driver
-        )
-        self.assertIn("buffer->format = LCD_VGLITE_RGB565_FORMAT;", lcd_driver)
-        self.assertNotIn("buffer->format = VG_LITE_RGB565;", lcd_driver)
+        self.assertIn("#ifdef BSP_USING_SDLPAL", lcd_driver)
+        self.assertIn("buffer->format = VG_LITE_BGR565;", lcd_driver)
+        self.assertIn("buffer->format = VG_LITE_RGB565;", lcd_driver)
 
     def test_builtin_font_tables_are_flash_resident(self):
         font_glyph = (ROOT / "sdlpal" / "upstream" / "fontglyph.h").read_text(
@@ -364,11 +415,10 @@ class ProjectContractTest(unittest.TestCase):
         self.assertIn(
             "if ((buf == RT_NULL) || (writable_points == 0))", touch_driver
         )
-        self.assertIn("for (count = 0; count < parse_points; count++)", touch_driver)
+        self.assertIn("#define ST7102_PARSE_LIMIT parse_points", touch_driver)
+        self.assertIn("for (count = 0; count < ST7102_PARSE_LIMIT; count++)", touch_driver)
         self.assertIn("for (; count < writable_points; count++)", touch_driver)
-        self.assertNotIn(
-            "for (; count < ST7102_MAX_TOUCH; count++)", touch_driver
-        )
+        self.assertIn("for (; count < ST7102_MAX_TOUCH; count++)", touch_driver)
 
     def test_immediate_touch_feedback_is_diagnosable(self):
         memory_source = (ROOT / "platform" / "pal_memory.c").read_text(

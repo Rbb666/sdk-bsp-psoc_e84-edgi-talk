@@ -28,6 +28,7 @@ env = Environment(tools = ['mingw'],
     AR = rtconfig.AR, ARFLAGS = '-rc',
     CXX = rtconfig.CXX, CXXFLAGS = rtconfig.CXXFLAGS,
     LINK = rtconfig.LINK, LINKFLAGS = rtconfig.LFLAGS)
+env.Append(CPPFLAGS=['-include', 'rtconfig.h'])
 env.PrependENVPath('PATH', rtconfig.EXEC_PATH)
 
 if rtconfig.PLATFORM in ['iccarm']:

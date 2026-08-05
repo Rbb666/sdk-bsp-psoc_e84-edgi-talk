@@ -664,7 +664,19 @@ static void vg_lite_exit(void)
         }
 
         /* Free up the device structure. */
+#if defined(BSP_USING_SDLPAL)
+#if _BAREMETAL
+        device = NULL;
+#else
         vg_lite_hal_free(device);
+        device = NULL;
+#endif
+#else
+#if !_BAREMETAL
+        vg_lite_hal_free(device);
+#endif
+        device = NULL;
+#endif
     }
 }
 

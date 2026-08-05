@@ -35,7 +35,7 @@ test_display_port: test_display_port.exe
 test_display_port.exe: test_display_port.c $(PLATFORM)/pal_display_port.c \
 		$(PLATFORM)/pal_display_port.h $(PLATFORM)/pal_display_core.c \
 		$(PLATFORM)/pal_display_core.h $(PLATFORM)/pal_controls.c \
-		$(PLATFORM)/pal_controls.h fakes_display/drv_lcd.h \
+		$(PLATFORM)/pal_controls.h $(PLATFORM)/pal_lcd_api.h \
 		fakes_display/rtthread.h
 	$(HOST_CC) $(CFLAGS) $(DISPLAY_FAKE_INCLUDES) $(INCLUDES) \
 		-DBSP_LCD_VGLITE_INDEXED test_display_port.c \
@@ -129,7 +129,7 @@ test_touch_driver: test_touch_driver.exe
 test_touch_driver.exe: test_touch_driver.c $(TOUCH_DRIVER)
 	$(HOST_CC) $(CFLAGS) -ffunction-sections -fdata-sections \
 		-Wno-unused-parameter $(TOUCH_FAKE_INCLUDES) \
-		-DST7102_HOST_TEST test_touch_driver.c \
+		-DBSP_USING_SDLPAL -DST7102_HOST_TEST test_touch_driver.c \
 		$(TOUCH_DRIVER) -Wl,--gc-sections -o $@
 
 clean:

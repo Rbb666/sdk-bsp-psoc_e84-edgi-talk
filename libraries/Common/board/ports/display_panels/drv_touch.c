@@ -129,6 +129,9 @@ static rt_size_t s_touch_read_len = 0;
 #define ST7102_READ_BUF_MAX (8 * ST7102_MAX_TOUCH)
 #define ST7102_READ_LEN_FALLBACK1 32
 #define ST7102_READ_LEN_FALLBACK2 16
+#ifdef BSP_USING_SDLPAL
+#define ST7102_POINT_VALID_MASK 0x80u
+#endif
 
 #ifndef ST7102_IRQ_ACTIVE_LEVEL
 #define ST7102_IRQ_ACTIVE_LEVEL PIN_LOW
@@ -194,7 +197,13 @@ static rt_size_t ST7102_read_point(struct rt_touch_device *touch, void *buf, rt_
     rt_pin_write(LED_RED, PIN_HIGH);
     rt_uint8_t touch_num = 0;
     rt_uint8_t cmd[2];
+#ifdef BSP_USING_SDLPAL
+    rt_size_t writable_points = read_num;
+    rt_size_t readable_points;
+    rt_size_t parse_points;
+#else
     rt_size_t max_points = ST7102_MAX_TOUCH;
+#endif
 
     int16_t input_x = 0;
     int16_t input_y = 0;
@@ -204,6 +213,18 @@ static rt_size_t ST7102_read_point(struct rt_touch_device *touch, void *buf, rt_
     static uint16_t count = 0;
     static uint16_t Last_Touch_Intn = 0;
     static uint16_t Touch_Intn = 0;
+
+#ifdef BSP_USING_SDLPAL
+    if ((buf == RT_NULL) || (writable_points == 0))
+    {
+        goto exit_;
+    }
+
+    if (writable_points > ST7102_MAX_TOUCH)
+    {
+        writable_points = ST7102_MAX_TOUCH;
+    }
+#endif
 
     cmd[0] = (rt_uint8_t)((ST7102_Read_Start_Position >> 8) & 0xFF);
     cmd[1] = (rt_uint8_t)(ST7102_Read_Start_Position & 0xFF);
@@ -233,26 +254,50 @@ static rt_size_t ST7102_read_point(struct rt_touch_device *touch, void *buf, rt_
         else
         {
             LOG_D("read point failed\n");
+#ifndef BSP_USING_SDLPAL
             read_num = 0;
+#endif
             goto exit_;
         }
     }
 
     if (s_touch_read_len <= 0x09)
     {
+#ifndef BSP_USING_SDLPAL
         read_num = 0;
+#endif
         goto exit_;
     }
 
+#ifdef BSP_USING_SDLPAL
+    readable_points = ((s_touch_read_len - 0x0A) / 7) + 1;
+    if (readable_points > ST7102_MAX_TOUCH)
+    {
+        readable_points = ST7102_MAX_TOUCH;
+    }
+    parse_points = writable_points < readable_points ? writable_points : readable_points;
+#else
     max_points = ((s_touch_read_len - 0x0A) / 7) + 1;
     if (max_points > ST7102_MAX_TOUCH)
     {
         max_points = ST7102_MAX_TOUCH;
     }
+#endif
 
-    for (count = 0; count < max_points; count++)
+#ifdef BSP_USING_SDLPAL
+#define ST7102_PARSE_LIMIT parse_points
+#else
+#define ST7102_PARSE_LIMIT max_points
+#endif
+    for (count = 0; count < ST7102_PARSE_LIMIT; count++)
     {
-        if (read_buf[0x09 + count * 7] > 0 && read_buf[0] == 0x08)
+#ifdef BSP_USING_SDLPAL
+        if ((read_buf[0x04 + count * 7] & ST7102_POINT_VALID_MASK) != 0u &&
+            read_buf[0] == 0x08)
+#else
+        if (read_buf[0x09 + count * 7] > 0 &&
+            read_buf[0] == 0x08)
+#endif
         {
             Last_input_x = (Last_read_buf[(7 * count) + 0x04] & 0x3F) << 8 | Last_read_buf[(7 * count) + 0x05];
             Last_input_y = (Last_read_buf[(7 * count) + 0x06] & 0x3F) << 8 | Last_read_buf[(7 * count) + 0x07];
@@ -286,8 +331,13 @@ static rt_size_t ST7102_read_point(struct rt_touch_device *touch, void *buf, rt_
             ST7102_touch_up(buf, count);
         }
     }
+#undef ST7102_PARSE_LIMIT
 
+#ifdef BSP_USING_SDLPAL
+    for (; count < writable_points; count++)
+#else
     for (; count < ST7102_MAX_TOUCH; count++)
+#endif
     {
         ST7102_touch_up(buf, count);
     }
@@ -311,6 +361,30 @@ static rt_size_t ST7102_read_point(struct rt_touch_device *touch, void *buf, rt_
 exit_:
     return touch_num;
 }
+
+#if defined(BSP_USING_SDLPAL) && defined(ST7102_HOST_TEST)
+rt_size_t ST7102_host_test_read_point(void *buf, rt_size_t read_num)
+{
+    return ST7102_read_point(RT_NULL, buf, read_num);
+}
+
+void ST7102_host_test_reset(void)
+{
+    rt_size_t i;
+
+    for (i = 0; i < ST7102_MAX_TOUCH; ++i)
+    {
+        pre_x[i] = -1;
+        pre_y[i] = -1;
+        pre_w[i] = -1;
+    }
+    rt_memset(s_tp_dowm, 0, sizeof(s_tp_dowm));
+    rt_memset(read_buf, 0, sizeof(read_buf));
+    rt_memset(Last_read_buf, 0, sizeof(Last_read_buf));
+    read_data = RT_NULL;
+    s_touch_read_len = 0;
+}
+#endif
 
 static rt_err_t ST7102_control(struct rt_touch_device *touch, int cmd, void *arg)
 {

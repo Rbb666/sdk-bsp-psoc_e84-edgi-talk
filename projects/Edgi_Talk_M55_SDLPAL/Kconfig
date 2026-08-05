@@ -26,7 +26,16 @@ config ENV_DIR
 config PLATFORM_DIR
     string
     option env="PLATFORM_DIR"
-    default "D:/SDK/sdk-bsp-psoc_e84-edgi-talk/projects/Edgi_Talk_M55_SDLPAL/platform"
+    default "platform"
+
+config BSP_USING_SDLPAL
+    bool
+    default y
+
+config BSP_LCD_VGLITE_INDEXED
+    bool "Enable SDLPal VG-Lite indexed framebuffer blit"
+    depends on BSP_USING_SDLPAL
+    default y
 
 source "$RTT_DIR/Kconfig"
 source "$PKGS_DIR/Kconfig"
