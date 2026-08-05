@@ -672,10 +672,7 @@ static void vg_lite_exit(void)
         device = NULL;
 #endif
 #else
-#if !_BAREMETAL
         vg_lite_hal_free(device);
-#endif
-        device = NULL;
 #endif
     }
 }

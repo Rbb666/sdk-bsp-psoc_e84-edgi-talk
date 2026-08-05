@@ -303,9 +303,6 @@ static void lcd_apply_runtime_gfxss_config(void)
     GFXSS_config.mipi_dsi_cfg = &GFXSS_mipi_dsi_config;
 }
 
-#if LCD_VGLITE_REQUIRED
-static rt_err_t lcd_vglite_init_once(void);
-
 #if LCD_NEEDS_SCANOUT_BUFFER || \
     (defined(BSP_USING_SDLPAL) && defined(BSP_LCD_VGLITE_INDEXED))
 static void lcd_vglite_buffer_init(vg_lite_buffer_t *buffer, void *memory,
@@ -445,7 +442,6 @@ static rt_bool_t lcd_vglite_rotate_to_scanout(const void *source_pixels,
 
     return RT_TRUE;
 }
-#endif
 #endif
 #endif
 
@@ -722,6 +718,8 @@ void lcd_flush_rgb565_area(const void *pixels, uint32_t x, uint32_t y,
 }
 
 #if defined(BSP_USING_SDLPAL) && defined(BSP_LCD_VGLITE_INDEXED)
+static rt_err_t lcd_vglite_init_once(void);
+
 static rt_bool_t lcd_indexed_vglite_failed(const char *stage,
                                            vg_lite_error_t status)
 {
