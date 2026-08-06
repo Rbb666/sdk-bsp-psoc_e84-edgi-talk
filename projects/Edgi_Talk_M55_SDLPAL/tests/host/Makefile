@@ -173,13 +173,15 @@ test_rix_output.exe: test_rix_output.cpp \
 		../../audio/third_party/adplug/player.cpp \
 		../../audio/third_party/adplug/rix.cpp \
 		../../audio/pal_mame_opl2_static.cpp \
-		../../audio/pal_mame_opl2_static.h
+		../../audio/pal_mame_opl2_static.h ../../audio/pal_rix_music.cpp \
+		../../audio/pal_rix_music.h
 	g++ -std=c++17 -Wall -Wextra -Werror -pedantic \
 		-Wno-unused-parameter -Wno-ignored-qualifiers $(AUDIO_INCLUDES) \
 		-DPAL_NO_RUNTIME_HEAP=1 -DUSE_RIX_EXTRA_INIT=0 \
 		test_rix_output.cpp ../../audio/third_party/adplug/player.cpp \
 		../../audio/third_party/adplug/rix.cpp \
-		../../audio/pal_mame_opl2_static.cpp -o $@
+		../../audio/pal_mame_opl2_static.cpp \
+		../../audio/pal_rix_music.cpp -o $@
 
 test_engine_heap: test_engine_heap.exe
 	.\test_engine_heap.exe
