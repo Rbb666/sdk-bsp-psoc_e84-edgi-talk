@@ -53,6 +53,8 @@ static test_message_t sent_messages[16];
 static size_t sent_count;
 static size_t replay_index;
 static bool replay_messages;
+static const uint32_t *replay_expected_masks;
+static size_t replay_expected_count;
 static jmp_buf worker_exit;
 static char log_output[8192];
 static size_t log_length;
@@ -141,6 +143,12 @@ rt_ssize_t rt_mq_recv(rt_mq_t mq, void *buffer, rt_size_t size,
     assert(replay_messages);
     assert(size == sizeof(test_message_t));
     assert(timeout == RT_WAITING_FOREVER);
+    if (replay_expected_masks != NULL)
+    {
+        assert(replay_index < replay_expected_count);
+        assert(pal_usb_keyboard_controls_get() ==
+               replay_expected_masks[replay_index]);
+    }
     if (replay_index >= sent_count)
     {
         longjmp(worker_exit, 1);
@@ -293,14 +301,25 @@ static void test_host_and_hid_lifecycle(void)
 
 static void test_worker_logs_queued_messages(void)
 {
+    static const uint32_t expected_masks[] = {
+        0u,
+        PAL_CONTROL_UP,
+        0u,
+        0u,
+    };
+
     replay_index = 0u;
     replay_messages = true;
+    replay_expected_masks = expected_masks;
+    replay_expected_count = sizeof(expected_masks) / sizeof(expected_masks[0]);
     if (setjmp(worker_exit) == 0)
     {
         worker_entry(worker_parameter);
         assert(false);
     }
     replay_messages = false;
+    replay_expected_masks = NULL;
+    replay_expected_count = 0u;
 
     assert(strstr(log_output,
                   "[PAL KEY] DOWN usage=0x52 key=UP action=PAL_CONTROL_UP") !=
@@ -310,12 +329,54 @@ static void test_worker_logs_queued_messages(void)
                   "[PAL KEY] UP   usage=0x52 key=UP action=PAL_CONTROL_UP") !=
            NULL);
     assert(strstr(log_output, "[PAL USB] keyboard disconnected") != NULL);
+    assert(pal_usb_keyboard_controls_get() == 0u);
+}
+
+static void test_worker_updates_control_snapshot(void)
+{
+    static const uint32_t expected_masks[] = {
+        0u,
+        PAL_CONTROL_UP | PAL_CONTROL_A,
+        PAL_CONTROL_A,
+        0u,
+        0u,
+    };
+
+    memset(sent_messages, 0, sizeof(sent_messages));
+    sent_count = 4u;
+    sent_messages[0].type = TEST_MESSAGE_REPORT;
+    sent_messages[0].generation = 7u;
+    sent_messages[0].report[2] = 0x52u;
+    sent_messages[0].report[3] = 0x28u;
+    sent_messages[1].type = TEST_MESSAGE_REPORT;
+    sent_messages[1].generation = 7u;
+    sent_messages[1].report[2] = 0x28u;
+    sent_messages[2].type = TEST_MESSAGE_REPORT;
+    sent_messages[2].generation = 7u;
+    sent_messages[3].type = TEST_MESSAGE_REPORT;
+    sent_messages[3].generation = 7u;
+    sent_messages[3].report[2] = 0x04u;
+
+    replay_index = 0u;
+    replay_messages = true;
+    replay_expected_masks = expected_masks;
+    replay_expected_count = sizeof(expected_masks) / sizeof(expected_masks[0]);
+    if (setjmp(worker_exit) == 0)
+    {
+        worker_entry(worker_parameter);
+        assert(false);
+    }
+    replay_messages = false;
+    replay_expected_masks = NULL;
+    replay_expected_count = 0u;
+    assert(pal_usb_keyboard_controls_get() == 0u);
 }
 
 int main(void)
 {
     test_host_and_hid_lifecycle();
     test_worker_logs_queued_messages();
+    test_worker_updates_control_snapshot();
     puts("usb_keyboard_port: PASS");
     return 0;
 }

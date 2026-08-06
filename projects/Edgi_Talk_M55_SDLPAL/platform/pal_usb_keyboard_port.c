@@ -54,6 +54,7 @@ static struct usbh_hid *volatile active_hid;
 static volatile uint32_t active_generation;
 static volatile uint32_t invalid_length_count;
 static volatile uint32_t queue_drop_count;
+static volatile uint32_t keyboard_control_mask;
 static bool worker_started;
 static bool host_started;
 
@@ -200,16 +201,44 @@ static bool is_boot_keyboard(const struct usbh_hid *hid_class)
                PAL_USB_KEYBOARD_BOOT_REPORT_SIZE;
 }
 
-static void log_key_event(void *context,
-                          const pal_usb_keyboard_event_t *event)
+static void handle_key_event(void *context,
+                             const pal_usb_keyboard_event_t *event)
 {
+    uint32_t control;
+    rt_base_t level;
+
     (void)context;
+    control = pal_usb_keyboard_control(event->usage);
+    if (control != 0u)
+    {
+        level = rt_hw_interrupt_disable();
+        if (event->pressed)
+        {
+            keyboard_control_mask |= control;
+        }
+        else
+        {
+            keyboard_control_mask &= ~control;
+        }
+        rt_hw_interrupt_enable(level);
+    }
+
     rt_kprintf("[PAL KEY] %s usage=0x%02x key=%s action=%s\n",
                event->pressed ? "DOWN" : "UP  ",
                (unsigned int)event->usage,
                pal_usb_keyboard_usage_name(event->usage),
-               pal_usb_keyboard_control_name(
-                   pal_usb_keyboard_control(event->usage)));
+               pal_usb_keyboard_control_name(control));
+}
+
+uint32_t pal_usb_keyboard_controls_get(void)
+{
+    uint32_t controls;
+    rt_base_t level;
+
+    level = rt_hw_interrupt_disable();
+    controls = keyboard_control_mask;
+    rt_hw_interrupt_enable(level);
+    return controls;
 }
 
 static void log_pending_stats(void)
@@ -251,7 +280,7 @@ static void keyboard_worker_entry(void *parameter)
         log_pending_stats();
         if (generation != message.generation)
         {
-            pal_usb_keyboard_release_all(&state, log_key_event, NULL);
+            pal_usb_keyboard_release_all(&state, handle_key_event, NULL);
             pal_usb_keyboard_state_init(&state);
             generation = message.generation;
             rollover_active = false;
@@ -262,7 +291,7 @@ static void keyboard_worker_entry(void *parameter)
         case PAL_USB_MESSAGE_REPORT:
             result = pal_usb_keyboard_process(
                 &state, message.report, sizeof(message.report),
-                log_key_event, NULL);
+                handle_key_event, NULL);
             if (result == PAL_USB_KEYBOARD_REPORT_ROLLOVER)
             {
                 if (!rollover_active)
@@ -277,13 +306,15 @@ static void keyboard_worker_entry(void *parameter)
             }
             break;
         case PAL_USB_MESSAGE_DISCONNECT:
-            pal_usb_keyboard_release_all(&state, log_key_event, NULL);
+            pal_usb_keyboard_release_all(&state, handle_key_event, NULL);
             pal_usb_keyboard_state_init(&state);
             generation = 0u;
             rollover_active = false;
             rt_kprintf("[PAL USB] keyboard disconnected\n");
             break;
         case PAL_USB_MESSAGE_ERROR:
+            pal_usb_keyboard_release_all(&state, handle_key_event, NULL);
+            pal_usb_keyboard_state_init(&state);
             rollover_active = false;
             rt_kprintf("[PAL USB] transfer error: %d\n", message.status);
             break;
