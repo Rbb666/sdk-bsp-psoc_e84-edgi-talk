@@ -7,6 +7,7 @@
 
 #include <rtthread.h>
 
+#include "pal_engine_heap.h"
 #include "pal_memory.h"
 #include "pal_save_io_core.h"
 
@@ -72,13 +73,14 @@ static void save_reserve_release(void)
 
 void *pal_engine_malloc(size_t size)
 {
-    void *pointer = malloc(size);
+    void *pointer;
 
     if (!save_sized_allocation(size))
     {
-        return pointer;
+        return pal_engine_heap_malloc(size);
     }
 
+    pointer = malloc(size);
     if (pointer != RT_NULL)
     {
         rt_kprintf("[PAL SAVE] alloc bytes=%lu source=SRAM ptr=%p\n",
@@ -94,9 +96,50 @@ void *pal_engine_malloc(size_t size)
         return pointer;
     }
 
+    pointer = pal_engine_heap_fallback_malloc(size);
+    if (pointer != RT_NULL)
+    {
+        rt_kprintf("[PAL SAVE] alloc bytes=%lu source=HyperRAM ptr=%p\n",
+                   (unsigned long)size, pointer);
+        return pointer;
+    }
+
     rt_kprintf("[PAL SAVE] alloc failed bytes=%lu\n", (unsigned long)size);
     pal_memory_report("save-alloc-failed");
     return RT_NULL;
+}
+
+void *pal_engine_calloc(size_t count, size_t size)
+{
+    return pal_engine_heap_calloc(count, size);
+}
+
+void *pal_engine_realloc(void *pointer, size_t size)
+{
+    void *replacement;
+
+    if (pointer != save_reserve)
+    {
+        return pal_engine_heap_realloc(pointer, size);
+    }
+    if (size == 0u)
+    {
+        save_reserve_release();
+        return RT_NULL;
+    }
+    if (size <= PAL_SAVE_RESERVE_BYTES)
+    {
+        return pointer;
+    }
+
+    replacement = pal_engine_heap_malloc(size);
+    if (replacement == RT_NULL)
+    {
+        return RT_NULL;
+    }
+    memcpy(replacement, save_reserve, PAL_SAVE_RESERVE_BYTES);
+    save_reserve_release();
+    return replacement;
 }
 
 void pal_engine_free(void *pointer)
@@ -107,7 +150,7 @@ void pal_engine_free(void *pointer)
         rt_kprintf("[PAL SAVE] released GFX reserve\n");
         return;
     }
-    free(pointer);
+    pal_engine_heap_free(pointer);
 }
 
 FILE *pal_engine_fopen(const char *path, const char *mode)

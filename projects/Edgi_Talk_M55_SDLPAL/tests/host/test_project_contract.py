@@ -348,6 +348,8 @@ class ProjectContractTest(unittest.TestCase):
 
         for libc_name, platform_name in (
             ("malloc", "pal_engine_malloc"),
+            ("calloc", "pal_engine_calloc"),
+            ("realloc", "pal_engine_realloc"),
             ("free", "pal_engine_free"),
             ("fopen", "pal_engine_fopen"),
             ("fwrite", "pal_engine_fwrite"),
@@ -361,7 +363,11 @@ class ProjectContractTest(unittest.TestCase):
         self.assertIn("pal_save_write_chunked", adapter)
         self.assertIn("PAL_SAVE_IO_CHUNK_BYTES", adapter)
         self.assertIn("_IONBF", adapter)
-        self.assertNotIn("pal_cold_alloc", adapter)
+        self.assertIn("pal_engine_heap_malloc", adapter)
+        self.assertIn("pal_engine_heap_fallback_malloc", adapter)
+        self.assertIn("pal_engine_heap_calloc", adapter)
+        self.assertIn("pal_engine_heap_realloc", adapter)
+        self.assertIn("pal_engine_heap_free", adapter)
 
         self.assertIn("__sdlpal_save_start__", linker)
         self.assertIn("KEEP(*(.cy_gpu_buf.sdlpal_save))", linker)
@@ -374,6 +380,8 @@ class ProjectContractTest(unittest.TestCase):
             )
             for hook in (
                 "pal_engine_malloc",
+                "pal_engine_calloc",
+                "pal_engine_realloc",
                 "pal_engine_free",
                 "pal_engine_fopen",
                 "pal_engine_fwrite",

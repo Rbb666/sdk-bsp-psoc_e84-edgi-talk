@@ -5,6 +5,8 @@
 #include <stdio.h>
 
 void *pal_engine_malloc(size_t size);
+void *pal_engine_calloc(size_t count, size_t size);
+void *pal_engine_realloc(void *pointer, size_t size);
 void pal_engine_free(void *pointer);
 FILE *pal_engine_fopen(const char *path, const char *mode);
 size_t pal_engine_fwrite(const void *data, size_t element_size,
