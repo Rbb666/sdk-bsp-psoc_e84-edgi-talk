@@ -1,0 +1,28 @@
+USB keyboard phase 1 board validation
+Date: 2026-08-06
+Board: PSE846GPS2DBZC4A / KIT_PSE84_EVAL_EPC2
+Firmware: projects/Edgi_Talk_M55_SDLPAL/rtthread.hex
+
+Flash result:
+- Programmed through KitProg3 with Infineon OpenOCD.
+- Image write and reset completed successfully.
+
+Observed startup:
+- [PAL USB] host ready: bus=0 base=0x44900000
+- DWC2 controller ID 0x4f54420a was detected.
+- DWC2 reported 16 host channels and FIFO depth 6735 words.
+
+Fault found during initial keyboard insertion:
+- BusFault IMPRECISERR occurred in the DWC2 port-connect interrupt.
+- Cause: CONFIG_USBHOST_MAX_INTF_ALTSETTINGS=2 changed CherryUSB Host
+  structure offsets while libusb_hc_dwc2.a was prebuilt for the default 12.
+- Resolution: restored the ABI value 12 and moved 32,920 bytes of Host state
+  to the zero-initialized .usb_host_data section in Secondary SRAM.
+
+Final board result (confirmed by user):
+- USB keyboard enumerates successfully.
+- Boot keyboard input reports are received normally.
+- Key press/release mapping logs are printed normally.
+- No insertion BusFault after the ABI fix.
+
+Verdict: PASS

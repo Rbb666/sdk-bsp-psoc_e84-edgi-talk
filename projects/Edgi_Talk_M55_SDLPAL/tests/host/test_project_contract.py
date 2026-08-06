@@ -41,6 +41,11 @@ class ProjectContractTest(unittest.TestCase):
             "CONFIG_BSP_LCD_ROTATION_DEGREES=(?:0|90|180|270)",
             build_matrix,
         )
+        self.assertIn(
+            '$bspLines = "CONFIG_BSP_LCD_ROTATION_$Rotation=y"',
+            build_matrix,
+        )
+        self.assertNotIn("$bspLines = foreach", build_matrix)
         self.assertNotIn("Default portrait rotation block", build_matrix)
         self.assertNotIn("if ($updated -eq $originalHeader)", build_matrix)
 
@@ -171,6 +176,79 @@ class ProjectContractTest(unittest.TestCase):
         self.assertIn("__lcd_indexed_staging_start__", linker)
         self.assertIn("__lcd_indexed_staging_end__", linker)
         self.assertNotIn("BSP_USING_LVGL", display_port)
+
+    def test_usb_keyboard_host_phase1_contract(self):
+        config = (ROOT / ".config").read_text(encoding="utf-8")
+        rtconfig = (ROOT / "rtconfig.h").read_text(encoding="utf-8")
+        platform_build = (ROOT / "platform" / "SConscript").read_text(
+            encoding="utf-8"
+        )
+        linker = (ROOT / "board" / "linker_scripts" / "link.ld").read_text(
+            encoding="utf-8"
+        )
+        application = (ROOT / "applications" / "main.c").read_text(
+            encoding="utf-8"
+        )
+        bridge = (ROOT / "platform" / "pal_engine_bridge.c").read_text(
+            encoding="utf-8"
+        )
+        cherry_kconfig = (
+            BSP_ROOT / "libraries" / "components" / "CherryUSB-1.6.0" / "Kconfig"
+        ).read_text(encoding="utf-8")
+        usb_config = (
+            BSP_ROOT
+            / "libraries"
+            / "Common"
+            / "board"
+            / "ports"
+            / "usb"
+            / "usb_config.h"
+        ).read_text(encoding="utf-8")
+
+        for setting in (
+            "CONFIG_RT_USING_CHERRYUSB=y",
+            "CONFIG_RT_CHERRYUSB_HOST=y",
+            "CONFIG_RT_CHERRYUSB_HOST_DWC2_INFINEON=y",
+            "CONFIG_RT_CHERRYUSB_HOST_HID=y",
+            "CONFIG_RT_TIMER_THREAD_STACK_SIZE=2048",
+            "CONFIG_CONFIG_USBHOST_MAX_INTF_ALTSETTINGS=12",
+        ):
+            self.assertIn(setting, config)
+        for define in (
+            "#define RT_USING_CHERRYUSB",
+            "#define RT_CHERRYUSB_HOST",
+            "#define RT_CHERRYUSB_HOST_DWC2_INFINEON",
+            "#define RT_CHERRYUSB_HOST_HID",
+            "#define RT_TIMER_THREAD_STACK_SIZE 2048",
+            "#define CONFIG_USBHOST_MAX_INTF_ALTSETTINGS 12",
+        ):
+            self.assertIn(define, rtconfig)
+        for unused in (
+            "CONFIG_RT_CHERRYUSB_HOST_MSC=y",
+            "CONFIG_RT_CHERRYUSB_HOST_VIDEO=y",
+            "CONFIG_RT_CHERRYUSB_HOST_CDC_ACM=y",
+        ):
+            self.assertNotIn(unused, config)
+
+        self.assertIn("CherryUSB-1.6.0/class/hid", platform_build)
+        self.assertIn("Common/board/ports/usb", platform_build)
+        self.assertIn("__usbh_class_info_start__", linker)
+        self.assertIn("KEEP(*(.usbh_class_info))", linker)
+        self.assertIn("__usbh_class_info_end__", linker)
+        self.assertIn(".sdlpal_usb (NOLOAD)", linker)
+        self.assertIn("LONG(__sdlpal_usb_start__)", linker)
+        self.assertIn(".usb_host_data (NOLOAD)", linker)
+        self.assertIn("LONG(__usb_host_data_start__)", linker)
+        self.assertIn("*usbh_core.o(.bss*)", linker)
+        self.assertIn("*usbh_hub.o(.bss*)", linker)
+        self.assertIn("*usbh_hid.o(.bss*)", linker)
+        self.assertIn("*libusb_hc_dwc2.a:usb_hc_dwc2.o(.bss*)", linker)
+        self.assertIn("pal_usb_keyboard_host_start()", application)
+        self.assertIn('#include "pal_usb_keyboard_port.h"', application)
+        self.assertNotIn("pal_usb_keyboard", bridge)
+        self.assertIn("pal_touch_port_poll", bridge)
+        self.assertIn("config USBHOST_MAX_INTF_ALTSETTINGS", cherry_kconfig)
+        self.assertIn("#ifndef CONFIG_USBHOST_MAX_INTF_ALTSETTINGS", usb_config)
 
     def test_shared_changes_are_sdlpal_guarded(self):
         lcd = (
@@ -797,6 +875,13 @@ class ProjectContractTest(unittest.TestCase):
             "E04",
             "E05",
             "audio",
+            "USB 键盘阶段一",
+            "[PAL USB] host ready",
+            "[PAL USB] keyboard connected",
+            "[PAL KEY] DOWN",
+            "阶段一不向 SDLPal 注入",
+            "CONFIG_CONFIG_USBHOST_MAX_INTF_ALTSETTINGS",
+            "必须保持为 `12`",
         ):
             self.assertIn(item, project_readme)
 

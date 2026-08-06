@@ -12,6 +12,7 @@
 #include "pal_status.h"
 #include "pal_storage.h"
 #include "pal_touch_port.h"
+#include "pal_usb_keyboard_port.h"
 
 #define PAL_LED_PIN GET_PIN(16, 6)
 #define PAL_LCD_BACKLIGHT_ENABLE_PIN GET_PIN(15, 7)
@@ -128,6 +129,7 @@ int main(void)
 
     rt_kprintf("SDLPal PSoC Edge start, resources=%s\n", PAL_STORAGE_ROOT);
     pal_memory_init_allocators();
+    (void)pal_usb_keyboard_host_start();
     rt_pin_mode(PAL_LED_PIN, PIN_MODE_OUTPUT);
     pal_boot_init(&boot);
 

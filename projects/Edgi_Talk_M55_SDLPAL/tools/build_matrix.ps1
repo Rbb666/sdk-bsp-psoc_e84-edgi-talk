@@ -44,13 +44,7 @@ function New-RotationConfig([int]$Rotation) {
             "# CONFIG_M55_BSP_LCD_ROTATION_$value is not set"
         }
     }
-    $bspLines = foreach ($value in 0, 90, 180, 270) {
-        if ($value -eq $Rotation) {
-            "CONFIG_BSP_LCD_ROTATION_$value=y"
-        } else {
-            "# CONFIG_BSP_LCD_ROTATION_$value is not set"
-        }
-    }
+    $bspLines = "CONFIG_BSP_LCD_ROTATION_$Rotation=y"
     $extraLines = @(
         "CONFIG_BSP_LCD_ROTATION_DEGREES=$Rotation",
         $(if ($Rotation -in 90, 270) {

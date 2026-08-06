@@ -98,6 +98,36 @@ rtk D:\workspace_work\env-windows\.venv\Scripts\python.exe tools\check_stack_usa
 - B：取消或返回。
 - PgUp/PgDn：SDLPal 原生上一页/下一页输入。
 
+## USB 键盘阶段一
+
+当前固件在 M55 应用启动时初始化 CherryUSB DWC2 Host，并接收标准 USB
+Boot Protocol 键盘的 8 字节输入报告。将键盘直接连接到开发板 USB Host
+接口；Host 初始化成功以及键盘完成枚举后，串口应依次出现类似日志：
+
+```text
+[PAL USB] host ready: bus=0 base=0x...
+[PAL USB] keyboard connected: vid=0x.... pid=0x.... ep=0x.. mps=...
+[PAL KEY] DOWN usage=0x52 key=UP action=PAL_CONTROL_UP
+[PAL KEY] UP   usage=0x52 key=UP action=PAL_CONTROL_UP
+```
+
+方向键映射为 `PAL_CONTROL_UP/DOWN/LEFT/RIGHT`，Enter 映射为
+`PAL_CONTROL_A`，Escape 映射为 `PAL_CONTROL_B`，PageUp/PageDown 映射为
+`PAL_CONTROL_PGUP/PGDN`。其他 Boot 键也打印 usage、键名和按下/松开状态，
+但 action 显示为 `NONE`。不提供 Boot 键盘接口、包长小于 8 字节或只提供
+厂商自定义 NKRO 接口的设备会打印 `HID ignored`，不会占用当前键盘通道。
+
+阶段一不向 SDLPal 注入键盘事件，游戏交互仍使用屏幕触摸按键；该阶段只验收
+Host 正常枚举、插拔恢复以及串口按键映射。每次按键只应产生一次 DOWN 和一次
+UP；断开键盘时会补发仍处于按下状态的 UP，并打印
+`[PAL USB] keyboard disconnected`。
+
+仓库中的 DWC2 Host 驱动为按 CherryUSB 默认配置预编译的静态库，因此
+`CONFIG_CONFIG_USBHOST_MAX_INTF_ALTSETTINGS` 必须保持为 `12`。修改这个值会
+改变 Host 结构体布局，导致预编译驱动在设备接入中断中使用错误的成员偏移。
+为保留 DTCM 主栈空间，Host 总线、Hub、HID 和 DWC2 静态状态统一放入
+Secondary SRAM 的 `.usb_host_data` 段。
+
 ## 启动状态
 
 | 代码 | 含义 | 处理 |
@@ -125,9 +155,12 @@ SRAM，无需修改 upstream 源码，也不会占用线程栈或 HyperRAM。存
 | 区域 | 固定占用/容量 | 说明 |
 | --- | ---: | --- |
 | M55 DTCM | framebuffer 128 KiB | primary + backup，各 64 KiB |
-| M55 DTCM | 23,168 B headroom | `.bss` 结束到 4 KiB MSP 主栈之间 |
+| M55 DTCM | 19,232 B headroom | `.bss` 结束到 4 KiB MSP 主栈之间 |
 | Secondary SRAM | 24,720 B 静态段 | 24 KiB 游戏线程栈、线程控制块及对齐 |
-| Secondary SRAM | 1,417,032 B 主堆窗口 | SDL surface 和其他高频动态对象 |
+| Secondary SRAM | 15,440 B 音频静态段 | 8 KiB 音频线程栈、队列和解码状态 |
+| Secondary SRAM | 2,512 B USB 静态段 | 2 KiB 键盘 worker 栈、消息队列和控制块 |
+| Secondary SRAM | 32,920 B USB Host 状态 | CherryUSB Host 总线、Hub、HID 和 DWC2 静态对象 |
+| Secondary SRAM | 1,359,712 B 主堆窗口 | SDL surface 和其他高频动态对象 |
 | GFX SRAM, 0/180 | 1,876,992 B / 3 MiB | LCD render、VG-Lite、15 KiB strip、64,000 B INDEX8 staging、593,408 B `PAL_LARGE` 和 192 KiB 保存保留区 |
 | GFX SRAM, 90/270 | 2,726,912 B / 3 MiB | 另含 819,200 B scanout buffer，剩余 418,816 B |
 | HyperRAM | 8 MiB 显式冷堆 | 不作为主堆 fallback；当前游戏路径的 `PAL_LARGE` 对象不使用该区域 |

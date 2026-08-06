@@ -220,6 +220,11 @@ SECTIONS
         KEEP(*(SORT(.rti_fn*)))
         __rt_init_end = .;
 
+        . = ALIGN(4);
+        __usbh_class_info_start__ = .;
+        KEEP(*(.usbh_class_info))
+        __usbh_class_info_end__ = .;
+
         __text_end = .;
         _etext = .;
         _estack = .;
@@ -301,6 +306,12 @@ SECTIONS
 
         LONG(__sdlpal_audio_start__)               /* Static SDLPal audio state in Secondary SRAM */
         LONG((__sdlpal_audio_end__ - __sdlpal_audio_start__)/4)
+
+        LONG(__sdlpal_usb_start__)                 /* Static SDLPal USB worker state in Secondary SRAM */
+        LONG((__sdlpal_usb_end__ - __sdlpal_usb_start__)/4)
+
+        LONG(__usb_host_data_start__)              /* CherryUSB Host state in Secondary SRAM */
+        LONG((__usb_host_data_end__ - __usb_host_data_start__)/4)
 
         __zero_table_end__ = .;
     } > m55_nvm_sel
@@ -452,6 +463,31 @@ SECTIONS
         __noinit_end__ = .;
     } > m55_data_INTERNAL
 
+    /* The prebuilt DWC2 library uses CherryUSB's default Host ABI. Keep all
+     * layout-dependent Host objects together while preserving DTCM headroom. */
+    .usb_host_data (NOLOAD) :
+    {
+        . = ALIGN(8);
+        __usb_host_data_start__ = .;
+
+        *usbh_core.o(.bss*)
+        *usbh_hub.o(.bss*)
+        *usbh_hid.o(.bss*)
+        *libusb_hc_dwc2.a:usb_hc_dwc2.o(.bss*)
+
+        . = ALIGN(8);
+        __usb_host_data_end__ = .;
+    } > m55_data_secondary
+
+    ASSERT(
+      SIZEOF(.usb_host_data) >= 0x7000,
+      "CherryUSB Host state is smaller than the prebuilt DWC2 ABI expects."
+    )
+    ASSERT(
+      SIZEOF(.usb_host_data) <= 0x10000,
+      "CherryUSB Host state exceeds the 64 KiB Secondary SRAM budget."
+    )
+
     /* A section for non-initialized data memory */
     .bss(NOLOAD) :
     {
@@ -530,6 +566,25 @@ SECTIONS
     ASSERT(
       SIZEOF(.sdlpal_audio) <= 0xc000,
       "SDLPal audio section exceeds the 48 KiB Secondary SRAM budget."
+    )
+
+    .sdlpal_usb (NOLOAD) :
+    {
+        . = ALIGN(8);
+        __sdlpal_usb_start__ = .;
+        KEEP(*(.sdlpal_usb))
+        KEEP(*(.sdlpal_usb.*))
+        . = ALIGN(8);
+        __sdlpal_usb_end__ = .;
+    } > m55_data_secondary
+
+    ASSERT(
+      SIZEOF(.sdlpal_usb) >= 0x800,
+      "SDLPal USB section must contain the static 2 KiB worker stack."
+    )
+    ASSERT(
+      SIZEOF(.sdlpal_usb) <= 0x1000,
+      "SDLPal USB section exceeds the 4 KiB Secondary SRAM budget."
     )
 
     /* A section for the heap memory */

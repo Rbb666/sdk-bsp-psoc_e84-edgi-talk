@@ -16,7 +16,7 @@
 #define IDLE_THREAD_STACK_SIZE 1024
 #define RT_USING_TIMER_SOFT
 #define RT_TIMER_THREAD_PRIO 4
-#define RT_TIMER_THREAD_STACK_SIZE 512
+#define RT_TIMER_THREAD_STACK_SIZE 2048
 
 /* kservice optimization */
 
@@ -432,5 +432,12 @@
 
 /* end of Board extended module Drivers */
 /* end of Hardware Drivers Config */
+
+#define RT_USING_CHERRYUSB
+#define RT_CHERRYUSB_HOST
+#define RT_CHERRYUSB_HOST_DWC2_INFINEON
+#define RT_CHERRYUSB_HOST_HID
+#define CONFIG_USBHOST_MAX_INTF_ALTSETTINGS 12
+#define CONFIG_USBHOST_SERIAL_RX_SIZE 2048
 
 #endif

@@ -427,6 +427,12 @@ if CHERRYUSB
             prompt "Set hubport change thread stacksize"
             default 4096
 
+        config USBHOST_MAX_INTF_ALTSETTINGS
+            int
+            prompt "Set maximum alternate settings per host interface"
+            range 1 12
+            default 12
+
         config USBHOST_REQUEST_BUFFER_LEN
             int
             prompt "Set host control transfer max buffer size"

@@ -14,6 +14,9 @@ from typing import Dict, Iterable, List, Tuple
 PAL_FRAMEBUFFER_BYTES = 128 * 1024
 PAL_THREAD_STACK_BYTES = 24 * 1024
 PAL_AUDIO_MAX_BYTES = 48 * 1024
+PAL_USB_MAX_BYTES = 4 * 1024
+USB_HOST_MIN_BYTES = 0x7000
+USB_HOST_MAX_BYTES = 0x10000
 M55_ITCM_RESERVED_BYTES = 64 * 1024
 LCD_INDEXED_STAGING_BYTES = 320 * 200
 PAL_LARGE_MIN_BYTES = 593362
@@ -54,7 +57,7 @@ def parse_map(text: str) -> Tuple[Dict[str, Tuple[int, int]], Dict[str, Tuple[in
         r"0x(?P<origin>[0-9a-fA-F]+)\s+0x(?P<length>[0-9a-fA-F]+)"
     )
     section_pattern = re.compile(
-        r"^\.(?P<name>pal_framebuffer|sdlpal_thread|sdlpal_audio|cy_gpu_buf)\s+"
+        r"^\.(?P<name>pal_framebuffer|sdlpal_thread|sdlpal_audio|sdlpal_usb|usb_host_data|cy_gpu_buf)\s+"
         r"0x(?P<origin>[0-9a-fA-F]+)\s+0x(?P<length>[0-9a-fA-F]+)"
     )
     section_values_pattern = re.compile(
@@ -75,6 +78,8 @@ def parse_map(text: str) -> Tuple[Dict[str, Tuple[int, int]], Dict[str, Tuple[in
             ".pal_framebuffer",
             ".sdlpal_thread",
             ".sdlpal_audio",
+            ".sdlpal_usb",
+            ".usb_host_data",
             ".cy_gpu_buf",
         ):
             pending_section = line[1:]
@@ -133,6 +138,10 @@ def validate_layout(
         "__sdlpal_thread_end__",
         "__sdlpal_audio_start__",
         "__sdlpal_audio_end__",
+        "__sdlpal_usb_start__",
+        "__sdlpal_usb_end__",
+        "__usb_host_data_start__",
+        "__usb_host_data_end__",
         "__HeapBase",
         "__cy_gpu_buf_start__",
         "__cy_gpu_buf_end__",
@@ -318,6 +327,10 @@ def validate_layout(
             "__sdlpal_thread_end__",
             "__sdlpal_audio_start__",
             "__sdlpal_audio_end__",
+            "__sdlpal_usb_start__",
+            "__sdlpal_usb_end__",
+            "__usb_host_data_start__",
+            "__usb_host_data_end__",
             "__HeapBase",
         )
     ):
@@ -326,6 +339,10 @@ def validate_layout(
         thread_end = symbols["__sdlpal_thread_end__"]
         audio_start = symbols["__sdlpal_audio_start__"]
         audio_end = symbols["__sdlpal_audio_end__"]
+        usb_start = symbols["__sdlpal_usb_start__"]
+        usb_end = symbols["__sdlpal_usb_end__"]
+        host_start = symbols["__usb_host_data_start__"]
+        host_end = symbols["__usb_host_data_end__"]
         if thread_start < origin or thread_end > origin + length:
             errors.append("SDLPal static thread storage is outside Secondary SRAM")
         if thread_end - thread_start < PAL_THREAD_STACK_BYTES:
@@ -338,6 +355,31 @@ def validate_layout(
             errors.append("SDLPal audio storage exceeds 48 KiB")
         if symbols["__HeapBase"] < audio_end:
             errors.append("primary heap overlaps SDLPal audio storage")
+        if usb_start < origin or usb_end > origin + length:
+            errors.append("SDLPal USB storage is outside Secondary SRAM")
+        if usb_start < audio_end or usb_end < usb_start:
+            errors.append("SDLPal USB storage overlaps audio storage")
+        if usb_end - usb_start > PAL_USB_MAX_BYTES:
+            errors.append("SDLPal USB storage exceeds 4 KiB")
+        if symbols["__HeapBase"] < usb_end:
+            errors.append("primary heap overlaps SDLPal USB storage")
+        if host_start < origin or host_end > origin + length:
+            errors.append("CherryUSB Host state is outside Secondary SRAM")
+        host_bytes = host_end - host_start
+        if host_bytes < USB_HOST_MIN_BYTES:
+            errors.append("CherryUSB Host state is smaller than 28 KiB")
+        if host_bytes > USB_HOST_MAX_BYTES:
+            errors.append("CherryUSB Host state exceeds 64 KiB")
+        for reserved_start, reserved_end in (
+            (thread_start, thread_end),
+            (audio_start, audio_end),
+            (usb_start, usb_end),
+        ):
+            if host_start < reserved_end and reserved_start < host_end:
+                errors.append("CherryUSB Host state overlaps SDLPal static storage")
+                break
+        if symbols["__HeapBase"] < host_end:
+            errors.append("primary heap overlaps CherryUSB Host state")
         if symbols["__HeapBase"] < thread_end:
             errors.append("primary heap overlaps SDLPal static thread storage")
 
@@ -395,6 +437,18 @@ def main() -> int:
         errors.append("map is missing .sdlpal_audio")
     elif audio_section[1] > PAL_AUDIO_MAX_BYTES:
         errors.append("map .sdlpal_audio exceeds 48 KiB")
+    usb_section = sections.get("sdlpal_usb")
+    if usb_section is None:
+        errors.append("map is missing .sdlpal_usb")
+    elif usb_section[1] > PAL_USB_MAX_BYTES:
+        errors.append("map .sdlpal_usb exceeds 4 KiB")
+    host_section = sections.get("usb_host_data")
+    if host_section is None:
+        errors.append("map is missing .usb_host_data")
+    elif host_section[1] < USB_HOST_MIN_BYTES:
+        errors.append("map .usb_host_data is smaller than 28 KiB")
+    elif host_section[1] > USB_HOST_MAX_BYTES:
+        errors.append("map .usb_host_data exceeds 64 KiB")
 
     if errors:
         for error in errors:
@@ -422,6 +476,11 @@ def main() -> int:
     audio_bytes = (
         symbols["__sdlpal_audio_end__"] - symbols["__sdlpal_audio_start__"]
     )
+    usb_bytes = symbols["__sdlpal_usb_end__"] - symbols["__sdlpal_usb_start__"]
+    usb_host_bytes = (
+        symbols["__usb_host_data_end__"]
+        - symbols["__usb_host_data_start__"]
+    )
     dtcm_headroom = symbols["__StackLimit"] - symbols["__bss_end__"]
     itcm_bytes = (
         symbols["__sdlpal_itcm_end__"] - symbols["__sdlpal_itcm_start__"]
@@ -434,7 +493,8 @@ def main() -> int:
         f"PASS rotation={args.rotation} framebuffer={PAL_FRAMEBUFFER_BYTES} "
         f"gfx={gfx_bytes} indexed={indexed_bytes} large={large_bytes} "
         f"save={save_bytes} resource={resource_bytes} "
-        f"thread={thread_bytes} audio={audio_bytes} "
+        f"thread={thread_bytes} audio={audio_bytes} usb={usb_bytes} "
+        f"usb_host={usb_host_bytes} "
         f"itcm={itcm_bytes} itcm_reserved={itcm_reserved} "
         f"dtcm_headroom={dtcm_headroom}"
     )

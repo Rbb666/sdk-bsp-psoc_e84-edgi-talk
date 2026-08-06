@@ -10,6 +10,14 @@ path = [
     cwd + '/../../../libraries/HAL_Drivers',
 ]
 
+if GetDepend(['RT_CHERRYUSB_HOST_HID']):
+    path += [
+        cwd + '/../../../libraries/Common/board/ports/usb',
+        cwd + '/../../../libraries/components/CherryUSB-1.6.0/common',
+        cwd + '/../../../libraries/components/CherryUSB-1.6.0/core',
+        cwd + '/../../../libraries/components/CherryUSB-1.6.0/class/hid',
+    ]
+
 group = DefineGroup('SDLPalPlatform', src, depend=[''], CPPPATH=path)
 
 Return('group')

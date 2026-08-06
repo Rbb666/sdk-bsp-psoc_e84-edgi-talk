@@ -9,19 +9,20 @@ SDL_INCLUDES := -I$(SDL_SHIM)/include
 FAKE_INCLUDES := -Ifakes
 TOUCH_FAKE_INCLUDES := -Ifakes_touch
 DISPLAY_FAKE_INCLUDES := -Ifakes_display
+USB_FAKE_INCLUDES := -Ifakes_usb
 AUDIO_INCLUDES := -I../../audio -I../../audio/third_party \
 	-I../../audio/third_party/adplug -I../../sdlpal/upstream \
 	-I../../sdlpal/upstream/sdl_compat \
 	-I../../sdlpal/upstream/esp32s3/native_engine_shim/include \
 	-I../../platform
 
-.PHONY: all test_usb_keyboard_core test_display_core test_display_port test_touch_core test_port_headers test_storage \
+.PHONY: all test_usb_keyboard_core test_usb_keyboard_port test_display_core test_display_port test_touch_core test_port_headers test_storage \
 	test_sdl_shim test_sdl_shim_surface_fallback test_libc_compat test_engine_bridge test_boot_state \
 	test_memory_policy test_engine_heap test_save_io_core test_touch_driver \
 	test_touch_poll_cache test_audio_cache test_voc_mixer test_audio_queue \
 	test_audio_resources test_audio_resampler test_rix_output clean
 
-all: test_usb_keyboard_core test_display_core test_display_port test_touch_core test_port_headers test_storage \
+all: test_usb_keyboard_core test_usb_keyboard_port test_display_core test_display_port test_touch_core test_port_headers test_storage \
 	test_sdl_shim test_libc_compat test_engine_bridge test_boot_state \
 	test_memory_policy test_engine_heap test_save_io_core test_touch_driver \
 	test_touch_poll_cache test_surface_storage \
@@ -36,6 +37,21 @@ test_usb_keyboard_core.exe: test_usb_keyboard_core.c \
 		$(PLATFORM)/pal_usb_keyboard_core.h \
 		$(PLATFORM)/pal_controls.h
 	$(HOST_CC) $(CFLAGS) $(INCLUDES) test_usb_keyboard_core.c \
+		$(PLATFORM)/pal_usb_keyboard_core.c -o $@
+
+test_usb_keyboard_port: test_usb_keyboard_port.exe
+	.\test_usb_keyboard_port.exe
+
+test_usb_keyboard_port.exe: test_usb_keyboard_port.c \
+		$(PLATFORM)/pal_usb_keyboard_port.c \
+		$(PLATFORM)/pal_usb_keyboard_port.h \
+		$(PLATFORM)/pal_usb_keyboard_core.c \
+		$(PLATFORM)/pal_usb_keyboard_core.h \
+		fakes_usb/rtthread.h fakes_usb/board.h \
+		fakes_usb/usb_config.h fakes_usb/usbh_core.h \
+		fakes_usb/usbh_hid.h
+	$(HOST_CC) $(CFLAGS) $(USB_FAKE_INCLUDES) $(INCLUDES) \
+		test_usb_keyboard_port.c $(PLATFORM)/pal_usb_keyboard_port.c \
 		$(PLATFORM)/pal_usb_keyboard_core.c -o $@
 
 test_display_core: test_display_core.exe

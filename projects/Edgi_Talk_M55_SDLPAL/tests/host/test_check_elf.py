@@ -21,7 +21,11 @@ class ElfValidationTests(unittest.TestCase):
             "__sdlpal_thread_end__": 0x260660B8,
             "__sdlpal_audio_start__": 0x260660B8,
             "__sdlpal_audio_end__": 0x2606E0B8,
-            "__HeapBase": 0x2606E0B8,
+            "__sdlpal_usb_start__": 0x2606E0B8,
+            "__sdlpal_usb_end__": 0x2606ECB8,
+            "__usb_host_data_start__": 0x2606ECB8,
+            "__usb_host_data_end__": 0x26076D50,
+            "__HeapBase": 0x26076D50,
             "__cy_gpu_buf_start__": 0x26200000,
             "__lcd_indexed_staging_start__": 0x262F9C00,
             "__lcd_indexed_staging_end__": 0x26309600,
@@ -113,6 +117,50 @@ class ElfValidationTests(unittest.TestCase):
         self.symbols["__HeapBase"] = 0x260670B8
         errors = check_elf.validate_layout(self.symbols, self.regions, 0)
         self.assertTrue(any("heap overlaps SDLPal audio" in error for error in errors))
+
+    def test_rejects_invalid_usb_sram_layout(self):
+        self.symbols["__sdlpal_usb_end__"] = (
+            self.symbols["__sdlpal_usb_start__"] + 4 * 1024 + 1
+        )
+        self.symbols["__HeapBase"] = self.symbols["__sdlpal_usb_end__"]
+        errors = check_elf.validate_layout(self.symbols, self.regions, 0)
+        self.assertTrue(
+            any("USB storage exceeds 4 KiB" in error for error in errors)
+        )
+
+        self.symbols["__sdlpal_usb_start__"] = 0x2606D000
+        self.symbols["__sdlpal_usb_end__"] = 0x2606DC00
+        self.symbols["__HeapBase"] = 0x2606ECB8
+        errors = check_elf.validate_layout(self.symbols, self.regions, 0)
+        self.assertTrue(
+            any("USB storage overlaps audio" in error for error in errors)
+        )
+
+        self.symbols["__sdlpal_usb_start__"] = 0x2606E0B8
+        self.symbols["__sdlpal_usb_end__"] = 0x2606ECB8
+        self.symbols["__HeapBase"] = 0x2606E800
+        errors = check_elf.validate_layout(self.symbols, self.regions, 0)
+        self.assertTrue(
+            any("heap overlaps SDLPal USB" in error for error in errors)
+        )
+
+    def test_rejects_invalid_usb_host_layout(self):
+        host_start = self.symbols["__usb_host_data_start__"]
+        self.symbols["__usb_host_data_end__"] = (
+            host_start + check_elf.USB_HOST_MIN_BYTES - 1
+        )
+        errors = check_elf.validate_layout(self.symbols, self.regions, 0)
+        self.assertTrue(any("Host state" in error for error in errors))
+
+        self.symbols["__usb_host_data_start__"] = 0x261BF000
+        self.symbols["__usb_host_data_end__"] = 0x261C1000
+        errors = check_elf.validate_layout(self.symbols, self.regions, 0)
+        self.assertTrue(any("Host state" in error for error in errors))
+
+        self.symbols["__usb_host_data_start__"] = 0x26066000
+        self.symbols["__usb_host_data_end__"] = 0x2606E098
+        errors = check_elf.validate_layout(self.symbols, self.regions, 0)
+        self.assertTrue(any("overlaps" in error for error in errors))
 
     def test_rejects_invalid_indexed_staging_layout(self):
         del self.symbols["__lcd_indexed_staging_end__"]
@@ -216,6 +264,8 @@ Linker script and memory map
 .pal_framebuffer
                 0x20000000    0x20000
 .sdlpal_audio    0x260660b8    0x8000
+.sdlpal_usb      0x2606e0b8    0xc00
+.usb_host_data   0x2606ecb8    0x8098
 .cy_gpu_buf     0x26200000    0xf9c00
 """
         regions, sections = check_elf.parse_map(text)
@@ -224,6 +274,8 @@ Linker script and memory map
             sections["pal_framebuffer"], (0x20000000, 0x20000)
         )
         self.assertEqual(sections["sdlpal_audio"], (0x260660B8, 0x8000))
+        self.assertEqual(sections["sdlpal_usb"], (0x2606E0B8, 0xC00))
+        self.assertEqual(sections["usb_host_data"], (0x2606ECB8, 0x8098))
 
 
 if __name__ == "__main__":
