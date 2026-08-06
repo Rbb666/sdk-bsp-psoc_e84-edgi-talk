@@ -448,6 +448,23 @@ class ProjectContractTest(unittest.TestCase):
             "if (CY_TDM_INTR_TX_FIFO_UNDERFLOW & intr_status)", source
         )
 
+    def test_sdlpal_i2s_accepts_message_queue_length_return(self):
+        source = (
+            BSP_ROOT / "libraries" / "HAL_Drivers" / "drv_i2s.c"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("rt_ssize_t received;", source)
+        self.assertIn("received = rt_mq_recv(snd_dev->tx_mq", source)
+        self.assertIn(
+            "received != (rt_ssize_t)sizeof(i2s_playback_q_data_t)",
+            source,
+        )
+        self.assertNotRegex(
+            source,
+            r"rt_mq_recv\(snd_dev->tx_mq,[\s\S]*?"
+            r"RT_WAITING_FOREVER\) != RT_EOK",
+        )
+
     def test_audio_diagnostics_and_documentation_contract(self):
         diagnostics_path = ROOT / "audio" / "pal_audio_diagnostics.c"
         diagnostics_header_path = ROOT / "audio" / "pal_audio_diagnostics.h"

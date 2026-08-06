@@ -785,6 +785,7 @@ void i2s_playback_task(void *arg)
     i2s_playback_q_data_t i2s_playback_q_data;
 #if defined(BSP_USING_SDLPAL)
     rt_uint32_t replay_generation;
+    rt_ssize_t received;
 #endif
 
     active_i2s_playback_buffer_ptr = i2s_stereo_playback_buffer1;
@@ -793,9 +794,10 @@ void i2s_playback_task(void *arg)
     while (1)
     {
 #if defined(BSP_USING_SDLPAL)
-        if (rt_mq_recv(snd_dev->tx_mq, &i2s_playback_q_data,
-                       sizeof(i2s_playback_q_data_t),
-                       RT_WAITING_FOREVER) != RT_EOK)
+        received = rt_mq_recv(snd_dev->tx_mq, &i2s_playback_q_data,
+                              sizeof(i2s_playback_q_data_t),
+                              RT_WAITING_FOREVER);
+        if (received != (rt_ssize_t)sizeof(i2s_playback_q_data_t))
         {
             continue;
         }
