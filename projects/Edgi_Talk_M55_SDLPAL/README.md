@@ -196,20 +196,10 @@ four simultaneous voices. Mutable decoder, mixer and the 8 KiB audio thread
 stack stay in the `.sdlpal_audio` Secondary SRAM section. Raw MKF chunks use a
 bounded 1 MiB HyperRAM LRU cache.
 
-Use the following FinSH command while validating audio:
-
-```text
-msh /> pal_audio
-```
-
-The report includes rendered/written blocks, real I2S underruns, render/write
-maximum time, voice peak, queue drops, cache current/peak usage, RIX failures,
-and audio stack high-water usage. For board acceptance, play title and battle
-music, trigger overlapping movement/menu/battle effects, change volume, pause
-and resume music, then run for at least 10 minutes. Expected steady-state
-results are `underruns=0`, `sound_drops=0`, `release_overflows=0`, no monotonic
-cache growth, and audio stack usage below 8192 bytes. Also repeat save/load,
-battle entry, touch controls and display scrolling to check that audio does not
-regress the existing workflows.
+For board acceptance, play title and battle music, trigger overlapping
+movement/menu/battle effects, change volume, pause and resume music, then run
+for at least 10 minutes. Also repeat save/load, battle entry, touch controls
+and display scrolling to check that audio does not regress the existing
+workflows.
 
 SDLPal 上游版本和本地差异见 `sdlpal/UPSTREAM.md`。

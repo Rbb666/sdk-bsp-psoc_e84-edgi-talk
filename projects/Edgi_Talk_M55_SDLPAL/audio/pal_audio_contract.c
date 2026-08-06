@@ -2,7 +2,6 @@
 #include "palcfg.h"
 
 #include "pal_audio_cache.h"
-#include "pal_audio_diagnostics.h"
 #include "pal_audio_mixer.h"
 #include "pal_audio_port.h"
 #include "pal_audio_queue.h"
@@ -589,69 +588,4 @@ void AUDIO_Lock(void)
 
 void AUDIO_Unlock(void)
 {
-}
-
-void pal_audio_diagnostics_get(pal_audio_diagnostics_t *diagnostics)
-{
-    pal_audio_port_metrics_t port;
-    pal_audio_cache_metrics_t cache;
-    pal_audio_mixer_metrics_t mixer;
-    pal_rix_music_metrics_t rix;
-    rt_base_t level;
-
-    if (diagnostics == NULL)
-    {
-        return;
-    }
-    memset(diagnostics, 0, sizeof(*diagnostics));
-    pal_audio_port_metrics_get(&port);
-    level = rt_hw_interrupt_disable();
-    pal_audio_cache_metrics_get(&audio_state.cache, &cache);
-    pal_audio_mixer_metrics_get(&audio_state.mixer, &mixer);
-    pal_rix_music_metrics_get(&rix);
-    diagnostics->opened = gAudioDevice.fOpened != FALSE;
-    diagnostics->music_enabled = gAudioDevice.fMusicEnabled != FALSE;
-    diagnostics->sound_enabled = audio_state.sound_enabled;
-    diagnostics->current_music = audio_state.runtime.applied_music.track;
-    diagnostics->active_voices = (uint32_t)pal_audio_mixer_active_voices(
-        &audio_state.mixer);
-    diagnostics->peak_voices = mixer.peak_voices;
-    diagnostics->replaced_voices = mixer.replaced_voices;
-    diagnostics->rejected_voices = mixer.rejected_voices;
-    diagnostics->sound_drops = audio_state.queue.metrics.sound_drops;
-    diagnostics->music_coalesces =
-        audio_state.queue.metrics.music_coalesces;
-    diagnostics->stale_music_commands =
-        audio_state.runtime.stale_music_commands;
-    diagnostics->release_overflows = audio_state.release_overflows;
-    diagnostics->cache_current_bytes = cache.current_bytes;
-    diagnostics->cache_peak_bytes = cache.peak_bytes;
-    diagnostics->cache_hits = cache.hits;
-    diagnostics->cache_misses = cache.misses;
-    diagnostics->cache_evictions = cache.evictions;
-    diagnostics->cache_failures = cache.failures;
-    diagnostics->rendered_rix_ticks = rix.rendered_ticks;
-    diagnostics->completed_rix_loops = rix.completed_loops;
-    diagnostics->failed_rix_tracks = rix.failed_tracks;
-    diagnostics->rix_playing = rix.playing;
-    rt_hw_interrupt_enable(level);
-
-    diagnostics->rendered_blocks = port.rendered_blocks;
-    diagnostics->written_blocks = port.written_blocks;
-    diagnostics->short_writes = port.short_writes;
-    diagnostics->silence_recoveries = port.silence_recoveries;
-    diagnostics->render_last_us = port.render_last_us;
-    diagnostics->render_max_us = port.render_max_us;
-    diagnostics->write_last_us = port.write_last_us;
-    diagnostics->write_max_us = port.write_max_us;
-    diagnostics->hardware_underruns = port.hardware_underruns;
-    diagnostics->driver_tx_messages = port.driver_tx_messages;
-    diagnostics->driver_rx_messages = port.driver_rx_messages;
-    diagnostics->driver_fifo_irqs = port.driver_fifo_irqs;
-    diagnostics->driver_sem_releases = port.driver_sem_releases;
-    diagnostics->driver_completion_requests =
-        port.driver_completion_requests;
-    diagnostics->driver_mq_send_failures = port.driver_mq_send_failures;
-    diagnostics->audio_stack_used_bytes = port.audio_stack_used_bytes;
-    diagnostics->audio_stack_total_bytes = port.audio_stack_total_bytes;
 }

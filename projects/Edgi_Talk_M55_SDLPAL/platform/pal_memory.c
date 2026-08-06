@@ -6,7 +6,6 @@
 #include <rtthread.h>
 
 #include "pal_display_port.h"
-#include "../audio/pal_audio_diagnostics.h"
 
 #if defined(__GNUC__)
 #define PAL_FRAMEBUFFER __attribute__((section(".pal_framebuffer"), aligned(64)))
@@ -136,14 +135,12 @@ void pal_memory_report(const char *stage)
     pal_memory_stats_t hot_stats;
     pal_memory_stats_t cold_stats;
     pal_display_metrics_t display;
-    pal_audio_diagnostics_t audio;
 
     rt_memory_info(&primary_total, &primary_used, &primary_peak);
     stack_peak = sdlpal_stack_high_water(&stack_total);
     pal_memory_stats_get(PAL_MEMORY_CLASS_HOT, &hot_stats);
     pal_memory_stats_get(PAL_MEMORY_CLASS_COLD, &cold_stats);
     pal_display_metrics_get(&display);
-    pal_audio_diagnostics_get(&audio);
 
     rt_kprintf("\n[PAL MEM] %s\n", stage != RT_NULL ? stage : "manual");
     rt_kprintf("  DTCM fb=%p..%p bytes=%lu bss_end=%p stack_limit=%p headroom=%lu\n",
@@ -190,16 +187,6 @@ void pal_memory_report(const char *stage)
                (unsigned long)display.control_update_count,
                (unsigned long)display.control_last_microseconds,
                (unsigned long)display.control_max_microseconds);
-    rt_kprintf("  audio blocks=%lu voices=%lu underruns=%lu render_max_us=%lu write_max_us=%lu cache=%lu/%lu stack=%lu/%lu\n",
-               (unsigned long)audio.rendered_blocks,
-               (unsigned long)audio.active_voices,
-               (unsigned long)audio.hardware_underruns,
-               (unsigned long)audio.render_max_us,
-               (unsigned long)audio.write_max_us,
-               (unsigned long)audio.cache_current_bytes,
-               (unsigned long)audio.cache_peak_bytes,
-               (unsigned long)audio.audio_stack_used_bytes,
-               (unsigned long)audio.audio_stack_total_bytes);
     rt_kprintf("  sdlpal stack used_peak=%lu total=%lu\n",
                (unsigned long)stack_peak, (unsigned long)stack_total);
 }
