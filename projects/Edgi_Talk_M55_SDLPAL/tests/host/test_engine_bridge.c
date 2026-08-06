@@ -7,10 +7,9 @@
 
 #include "pal_engine_bridge.h"
 #include "pal_display_port.h"
-#include "pal_touch_port.h"
+#include "pal_input_port.h"
 
-static uint32_t fake_touch_mask;
-static uint32_t displayed_control_mask;
+static uint32_t fake_input_mask;
 static unsigned present_count;
 static uint32_t delayed_milliseconds;
 static const uint8_t *present_pixels;
@@ -27,29 +26,9 @@ bool pal_display_present_indexed(const uint8_t *pixels, size_t pitch,
     return true;
 }
 
-void pal_display_controls_set(uint32_t pressed_mask)
+uint32_t pal_input_port_poll(void)
 {
-    displayed_control_mask = pressed_mask;
-}
-
-bool pal_touch_port_poll(pal_touch_point_t *points, size_t capacity,
-                         size_t *count)
-{
-    (void)points;
-    (void)capacity;
-    *count = 0u;
-    return true;
-}
-
-uint32_t pal_touch_controls(const pal_touch_point_t *points, size_t count,
-                            uint16_t rotation,
-                            const pal_touch_calibration_t *calibration)
-{
-    (void)points;
-    (void)count;
-    (void)rotation;
-    (void)calibration;
-    return fake_touch_mask;
+    return fake_input_mask;
 }
 
 uint32_t rt_tick_get_millisecond(void)
@@ -100,23 +79,22 @@ int main(void)
     assert(present_palette[7].g == 22u);
     assert(present_palette[7].b == 33u);
 
-    fake_touch_mask = PAL_CONTROL_RIGHT | PAL_CONTROL_A;
+    fake_input_mask = PAL_CONTROL_RIGHT | PAL_CONTROL_A;
     expect_key(SDL_KEYDOWN, SDLK_RIGHT);
     expect_key(SDL_KEYDOWN, SDLK_RETURN);
-    assert(displayed_control_mask == fake_touch_mask);
 
-    fake_touch_mask = 0u;
+    fake_input_mask = 0u;
     expect_key(SDL_KEYUP, SDLK_RIGHT);
     expect_key(SDL_KEYUP, SDLK_RETURN);
     memset(&event, 0, sizeof(event));
     assert(PalEngineBridge_PollEvent(&event) == 0);
 
-    fake_touch_mask = PAL_CONTROL_RIGHT;
+    fake_input_mask = PAL_CONTROL_RIGHT;
     expect_key(SDL_KEYDOWN, SDLK_RIGHT);
-    fake_touch_mask = PAL_CONTROL_A;
+    fake_input_mask = PAL_CONTROL_A;
     expect_key(SDL_KEYUP, SDLK_RIGHT);
     expect_key(SDL_KEYDOWN, SDLK_RETURN);
-    fake_touch_mask = 0u;
+    fake_input_mask = 0u;
     expect_key(SDL_KEYUP, SDLK_RETURN);
 
     assert(PalEngineBridge_GetTicks() == 1234u);

@@ -10,19 +10,20 @@ FAKE_INCLUDES := -Ifakes
 TOUCH_FAKE_INCLUDES := -Ifakes_touch
 DISPLAY_FAKE_INCLUDES := -Ifakes_display
 USB_FAKE_INCLUDES := -Ifakes_usb
+INPUT_FAKE_INCLUDES := -Ifakes_input
 AUDIO_INCLUDES := -I../../audio -I../../audio/third_party \
 	-I../../audio/third_party/adplug -I../../sdlpal/upstream \
 	-I../../sdlpal/upstream/sdl_compat \
 	-I../../sdlpal/upstream/esp32s3/native_engine_shim/include \
 	-I../../platform
 
-.PHONY: all test_usb_keyboard_core test_usb_keyboard_port test_display_core test_display_port test_touch_core test_port_headers test_storage \
+.PHONY: all test_usb_keyboard_core test_usb_keyboard_port test_input_port_touch test_input_port_keyboard test_display_core test_display_port test_touch_core test_port_headers test_storage \
 	test_sdl_shim test_sdl_shim_surface_fallback test_libc_compat test_engine_bridge test_boot_state \
 	test_memory_policy test_engine_heap test_save_io_core test_touch_driver \
 	test_touch_poll_cache test_audio_cache test_voc_mixer test_audio_queue \
 	test_audio_resources test_audio_resampler test_rix_output clean
 
-all: test_usb_keyboard_core test_usb_keyboard_port test_display_core test_display_port test_touch_core test_port_headers test_storage \
+all: test_usb_keyboard_core test_usb_keyboard_port test_input_port_touch test_input_port_keyboard test_display_core test_display_port test_touch_core test_port_headers test_storage \
 	test_sdl_shim test_libc_compat test_engine_bridge test_boot_state \
 	test_memory_policy test_engine_heap test_save_io_core test_touch_driver \
 	test_touch_poll_cache test_surface_storage \
@@ -53,6 +54,26 @@ test_usb_keyboard_port.exe: test_usb_keyboard_port.c \
 	$(HOST_CC) $(CFLAGS) $(USB_FAKE_INCLUDES) $(INCLUDES) \
 		test_usb_keyboard_port.c $(PLATFORM)/pal_usb_keyboard_port.c \
 		$(PLATFORM)/pal_usb_keyboard_core.c -o $@
+
+test_input_port_touch: test_input_port_touch.exe
+	.\test_input_port_touch.exe
+
+test_input_port_touch.exe: test_input_port.c \
+		$(PLATFORM)/pal_input_port.c $(PLATFORM)/pal_input_port.h \
+		fakes_input/pal_touch_port.h
+	$(HOST_CC) $(CFLAGS) $(INPUT_FAKE_INCLUDES) $(INCLUDES) \
+		-DBSP_SDLPAL_INPUT_TOUCH -DBSP_LCD_ROTATION_DEGREES=90 \
+		test_input_port.c $(PLATFORM)/pal_input_port.c -o $@
+
+test_input_port_keyboard: test_input_port_keyboard.exe
+	.\test_input_port_keyboard.exe
+
+test_input_port_keyboard.exe: test_input_port.c \
+		$(PLATFORM)/pal_input_port.c $(PLATFORM)/pal_input_port.h \
+		fakes_input/pal_usb_keyboard_port.h
+	$(HOST_CC) $(CFLAGS) $(INPUT_FAKE_INCLUDES) $(INCLUDES) \
+		-DBSP_SDLPAL_INPUT_USB_KEYBOARD \
+		test_input_port.c $(PLATFORM)/pal_input_port.c -o $@
 
 test_display_core: test_display_core.exe
 	.\test_display_core.exe

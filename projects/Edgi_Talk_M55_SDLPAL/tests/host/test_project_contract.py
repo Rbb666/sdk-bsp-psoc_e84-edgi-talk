@@ -192,6 +192,7 @@ class ProjectContractTest(unittest.TestCase):
         bridge = (ROOT / "platform" / "pal_engine_bridge.c").read_text(
             encoding="utf-8"
         )
+        project_kconfig = (ROOT / "Kconfig").read_text(encoding="utf-8")
         cherry_kconfig = (
             BSP_ROOT / "libraries" / "components" / "CherryUSB-1.6.0" / "Kconfig"
         ).read_text(encoding="utf-8")
@@ -206,6 +207,7 @@ class ProjectContractTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         for setting in (
+            "CONFIG_BSP_SDLPAL_INPUT_USB_KEYBOARD=y",
             "CONFIG_RT_USING_CHERRYUSB=y",
             "CONFIG_RT_CHERRYUSB_HOST=y",
             "CONFIG_RT_CHERRYUSB_HOST_DWC2_INFINEON=y",
@@ -214,7 +216,11 @@ class ProjectContractTest(unittest.TestCase):
             "CONFIG_CONFIG_USBHOST_MAX_INTF_ALTSETTINGS=12",
         ):
             self.assertIn(setting, config)
+        self.assertIn(
+            "# CONFIG_BSP_SDLPAL_INPUT_TOUCH is not set", config
+        )
         for define in (
+            "#define BSP_SDLPAL_INPUT_USB_KEYBOARD",
             "#define RT_USING_CHERRYUSB",
             "#define RT_CHERRYUSB_HOST",
             "#define RT_CHERRYUSB_HOST_DWC2_INFINEON",
@@ -243,10 +249,32 @@ class ProjectContractTest(unittest.TestCase):
         self.assertIn("*usbh_hub.o(.bss*)", linker)
         self.assertIn("*usbh_hid.o(.bss*)", linker)
         self.assertIn("*libusb_hc_dwc2.a:usb_hc_dwc2.o(.bss*)", linker)
-        self.assertIn("pal_usb_keyboard_host_start()", application)
-        self.assertIn('#include "pal_usb_keyboard_port.h"', application)
+        self.assertIn("choice", project_kconfig)
+        self.assertIn("config BSP_SDLPAL_INPUT_TOUCH", project_kconfig)
+        self.assertIn(
+            "config BSP_SDLPAL_INPUT_USB_KEYBOARD", project_kconfig
+        )
+        self.assertIn(
+            "default BSP_SDLPAL_INPUT_USB_KEYBOARD", project_kconfig
+        )
+        for selection in (
+            "select RT_USING_CHERRYUSB",
+            "select RT_CHERRYUSB_HOST",
+            "select RT_CHERRYUSB_HOST_DWC2_INFINEON",
+            "select RT_CHERRYUSB_HOST_HID",
+        ):
+            self.assertIn(selection, project_kconfig)
+        self.assertIn("pal_input_port_init()", application)
+        self.assertIn('#include "pal_input_port.h"', application)
+        self.assertNotIn("pal_touch_port_init()", application)
+        self.assertNotIn("pal_usb_keyboard_host_start()", application)
         self.assertNotIn("pal_usb_keyboard", bridge)
-        self.assertIn("pal_touch_port_poll", bridge)
+        self.assertNotIn("pal_touch_port", bridge)
+        self.assertIn("pal_input_port_poll", bridge)
+        self.assertIn("BSP_SDLPAL_INPUT_TOUCH", platform_build)
+        self.assertIn("BSP_SDLPAL_INPUT_USB_KEYBOARD", platform_build)
+        self.assertIn("Glob('pal_usb_keyboard_*.c')", platform_build)
+        self.assertIn("Glob('pal_touch_*.c')", platform_build)
         self.assertIn("config USBHOST_MAX_INTF_ALTSETTINGS", cherry_kconfig)
         self.assertIn("#ifndef CONFIG_USBHOST_MAX_INTF_ALTSETTINGS", usb_config)
 

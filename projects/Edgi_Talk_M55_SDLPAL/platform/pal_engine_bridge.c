@@ -7,12 +7,8 @@
 
 #include "pal_controls.h"
 #include "pal_display_port.h"
+#include "pal_input_port.h"
 #include "pal_memory.h"
-#include "pal_touch_port.h"
-
-#ifndef BSP_LCD_ROTATION_DEGREES
-#define BSP_LCD_ROTATION_DEGREES 0
-#endif
 
 #define PAL_BRIDGE_EVENT_QUEUE_LENGTH 8u
 
@@ -125,9 +121,6 @@ void PalEngineBridge_RenderPresentIndexed(const void *pixels, int pitch,
 
 int PalEngineBridge_PollEvent(SDL_Event *event)
 {
-    static const pal_touch_calibration_t calibration = {false, false, false};
-    pal_touch_point_t points[PAL_TOUCH_MAX_POINTS];
-    size_t point_count = 0u;
     uint32_t current_mask;
 
     if (pop_pending_event(event)) {
@@ -139,13 +132,7 @@ int PalEngineBridge_PollEvent(SDL_Event *event)
         return pop_pending_event(event);
     }
 
-    if (!pal_touch_port_poll(points, PAL_TOUCH_MAX_POINTS, &point_count)) {
-        point_count = 0u;
-    }
-    current_mask = pal_touch_controls(points, point_count,
-                                      BSP_LCD_ROTATION_DEGREES,
-                                      &calibration);
-    pal_display_controls_set(current_mask);
+    current_mask = pal_input_port_poll();
     update_control_events(current_mask);
     return pop_pending_event(event);
 }

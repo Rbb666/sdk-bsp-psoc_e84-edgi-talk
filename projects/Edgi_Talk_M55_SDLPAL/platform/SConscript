@@ -10,13 +10,19 @@ path = [
     cwd + '/../../../libraries/HAL_Drivers',
 ]
 
-if GetDepend(['RT_CHERRYUSB_HOST_HID']):
+if GetDepend(['BSP_SDLPAL_INPUT_TOUCH']):
+    src = [item for item in src
+           if item not in Glob('pal_usb_keyboard_*.c')]
+elif GetDepend(['BSP_SDLPAL_INPUT_USB_KEYBOARD']):
+    src = [item for item in src if item not in Glob('pal_touch_*.c')]
     path += [
         cwd + '/../../../libraries/Common/board/ports/usb',
         cwd + '/../../../libraries/components/CherryUSB-1.6.0/common',
         cwd + '/../../../libraries/components/CherryUSB-1.6.0/core',
         cwd + '/../../../libraries/components/CherryUSB-1.6.0/class/hid',
     ]
+else:
+    raise RuntimeError('Select exactly one SDLPal input mode')
 
 group = DefineGroup('SDLPalPlatform', src, depend=[''], CPPPATH=path)
 

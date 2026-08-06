@@ -8,11 +8,10 @@
 #include <string.h>
 
 #include "pal_boot_state.h"
+#include "pal_input_port.h"
 #include "pal_memory.h"
 #include "pal_status.h"
 #include "pal_storage.h"
-#include "pal_touch_port.h"
-#include "pal_usb_keyboard_port.h"
 
 #define PAL_LED_PIN GET_PIN(16, 6)
 #define PAL_LCD_BACKLIGHT_ENABLE_PIN GET_PIN(15, 7)
@@ -66,7 +65,7 @@ static bool boot_initialize_io(void *context)
     (void)context;
     return rt_device_find("lcd") != RT_NULL &&
            pal_storage_prepare_save_dir(PAL_STORAGE_SAVE_DIR) &&
-           pal_touch_port_init();
+           pal_input_port_init();
 }
 
 static void engine_entry(void *parameter)
@@ -129,7 +128,6 @@ int main(void)
 
     rt_kprintf("SDLPal PSoC Edge start, resources=%s\n", PAL_STORAGE_ROOT);
     pal_memory_init_allocators();
-    (void)pal_usb_keyboard_host_start();
     rt_pin_mode(PAL_LED_PIN, PIN_MODE_OUTPUT);
     pal_boot_init(&boot);
 

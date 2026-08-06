@@ -34,6 +34,23 @@ config BSP_USING_SDLPAL
     select BSP_USING_AUDIO_PLAY
     default y
 
+choice
+    prompt "SDLPal input method"
+    depends on BSP_USING_SDLPAL
+    default BSP_SDLPAL_INPUT_USB_KEYBOARD
+
+config BSP_SDLPAL_INPUT_TOUCH
+    bool "Touch screen controls"
+
+config BSP_SDLPAL_INPUT_USB_KEYBOARD
+    bool "USB Host keyboard"
+    select RT_USING_CHERRYUSB
+    select RT_CHERRYUSB_HOST
+    select RT_CHERRYUSB_HOST_DWC2_INFINEON
+    select RT_CHERRYUSB_HOST_HID
+
+endchoice
+
 config BSP_LCD_VGLITE_INDEXED
     bool "Enable SDLPal VG-Lite indexed framebuffer blit"
     depends on BSP_USING_SDLPAL
