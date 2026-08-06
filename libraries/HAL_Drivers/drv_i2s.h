@@ -164,22 +164,6 @@ void app_i2s_enable(void);
 void app_i2s_activate(void);
 void app_i2s_deactivate(void);
 
-#if defined(BSP_USING_SDLPAL)
-typedef struct drv_i2s_sdlpal_metrics
-{
-    uint32_t tx_messages;
-    uint32_t rx_messages;
-    uint32_t fifo_irqs;
-    uint32_t sem_releases;
-    uint32_t completion_requests;
-    uint32_t mq_send_failures;
-    uint32_t underruns;
-} drv_i2s_sdlpal_metrics_t;
-
-void drv_i2s_sdlpal_metrics_get(drv_i2s_sdlpal_metrics_t *metrics);
-#endif
-
-
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
