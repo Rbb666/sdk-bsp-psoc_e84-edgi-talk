@@ -7,11 +7,26 @@
 - License: GPL-3.0; see `upstream/LICENSE`
 
 The target builds an explicit source allowlist: the game core, compatibility
-layer, headless SDL shim, and the no-audio contract. ESP32 startup, display,
-touch, storage, audio, packed-resource, and memory-profile implementations are
-not included. Three `embedded` headers are retained because the extreme branch
-includes their declarations from otherwise portable core files; none of their
-memory-level or packed-resource modes is enabled.
+layer, headless SDL shim, and a PSoC-owned audio contract. ESP32 startup,
+display, touch, storage, packed-resource, and memory-profile implementations
+are not included. Three `embedded` headers are retained because the extreme
+branch includes their declarations from otherwise portable core files; none of
+their memory-level or packed-resource modes is enabled.
+
+The project-private `audio/third_party` tree imports the following fixed-memory
+RIX/OPL2 files from the same locked commit:
+
+- `adplug/{binio.h,fprovide.h,opl.h,opltypes.h,player.cpp,player.h,rix.cpp,rix.h}`
+- `adplug/mame/{fmopl.cpp.h,fmopl.h,mame.h}`
+- `embedded/pal_mame_opl2_fixed_tables.inc`
+- `embedded/pal_mame_opl2_static.{cpp,h}`
+
+AdPlug files retain their LGPL-2.1-or-later notices. The MAME FMOPL core retains
+its GPL-2.0-or-later notice, and the SDLPal wrapper remains GPL-3.0-or-later.
+The imported `fmopl.cpp.h` and fixed-table include match their source Git blobs
+exactly. Project-local adaptations only change relative include paths, omit
+`common.h` in the fixed-memory RIX build to avoid unused desktop dependencies,
+and place mutable OPL state in `.sdlpal_audio` Secondary SRAM.
 
 Local changes to the snapshot are intentionally small:
 

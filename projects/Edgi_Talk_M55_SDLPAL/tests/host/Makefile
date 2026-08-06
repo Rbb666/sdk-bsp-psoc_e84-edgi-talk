@@ -9,6 +9,11 @@ SDL_INCLUDES := -I$(SDL_SHIM)/include
 FAKE_INCLUDES := -Ifakes
 TOUCH_FAKE_INCLUDES := -Ifakes_touch
 DISPLAY_FAKE_INCLUDES := -Ifakes_display
+AUDIO_INCLUDES := -I../../audio -I../../audio/third_party \
+	-I../../audio/third_party/adplug -I../../sdlpal/upstream \
+	-I../../sdlpal/upstream/sdl_compat \
+	-I../../sdlpal/upstream/esp32s3/native_engine_shim/include \
+	-I../../platform
 
 .PHONY: all test_display_core test_display_port test_touch_core test_port_headers test_storage \
 	test_sdl_shim test_sdl_shim_surface_fallback test_libc_compat test_engine_bridge test_boot_state \
@@ -160,6 +165,21 @@ test_audio_queue.exe: test_audio_queue.c ../../audio/pal_audio_queue.c \
 		../../audio/pal_audio_runtime.h ../../audio/pal_audio_cache.h
 	$(HOST_CC) $(CFLAGS) -I../../audio test_audio_queue.c \
 		../../audio/pal_audio_queue.c ../../audio/pal_audio_runtime.c -o $@
+
+test_rix_output: test_rix_output.exe
+	.\test_rix_output.exe
+
+test_rix_output.exe: test_rix_output.cpp \
+		../../audio/third_party/adplug/player.cpp \
+		../../audio/third_party/adplug/rix.cpp \
+		../../audio/pal_mame_opl2_static.cpp \
+		../../audio/pal_mame_opl2_static.h
+	g++ -std=c++17 -Wall -Wextra -Werror -pedantic \
+		-Wno-unused-parameter -Wno-ignored-qualifiers $(AUDIO_INCLUDES) \
+		-DPAL_NO_RUNTIME_HEAP=1 -DUSE_RIX_EXTRA_INIT=0 \
+		test_rix_output.cpp ../../audio/third_party/adplug/player.cpp \
+		../../audio/third_party/adplug/rix.cpp \
+		../../audio/pal_mame_opl2_static.cpp -o $@
 
 test_engine_heap: test_engine_heap.exe
 	.\test_engine_heap.exe
