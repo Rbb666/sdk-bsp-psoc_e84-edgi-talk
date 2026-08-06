@@ -133,7 +133,15 @@ test_memory_policy: test_memory_policy.exe
 test_memory_policy.exe: test_memory_policy.c \
 		$(PLATFORM)/pal_memory_policy.c $(PLATFORM)/pal_memory_policy.h
 	$(HOST_CC) $(CFLAGS) $(INCLUDES) test_memory_policy.c \
-		$(PLATFORM)/pal_memory_policy.c -o $@
+	$(PLATFORM)/pal_memory_policy.c -o $@
+
+test_audio_cache: test_audio_cache.exe
+	.\test_audio_cache.exe
+
+test_audio_cache.exe: test_audio_cache.c ../../audio/pal_audio_cache.c \
+		../../audio/pal_audio_cache.h
+	$(HOST_CC) $(CFLAGS) -I../../audio test_audio_cache.c \
+		../../audio/pal_audio_cache.c -o $@
 
 test_engine_heap: test_engine_heap.exe
 	.\test_engine_heap.exe
