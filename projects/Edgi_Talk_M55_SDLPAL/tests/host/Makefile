@@ -143,6 +143,15 @@ test_audio_cache.exe: test_audio_cache.c ../../audio/pal_audio_cache.c \
 	$(HOST_CC) $(CFLAGS) -I../../audio test_audio_cache.c \
 		../../audio/pal_audio_cache.c -o $@
 
+test_voc_mixer: test_voc_mixer.exe
+	.\test_voc_mixer.exe
+
+test_voc_mixer.exe: test_voc_mixer.c ../../audio/pal_voc.c \
+		../../audio/pal_voc.h ../../audio/pal_audio_mixer.c \
+		../../audio/pal_audio_mixer.h
+	$(HOST_CC) $(CFLAGS) -I../../audio test_voc_mixer.c \
+		../../audio/pal_voc.c ../../audio/pal_audio_mixer.c -o $@
+
 test_engine_heap: test_engine_heap.exe
 	.\test_engine_heap.exe
 
