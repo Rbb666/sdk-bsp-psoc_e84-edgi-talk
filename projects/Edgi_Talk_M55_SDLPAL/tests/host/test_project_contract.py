@@ -465,7 +465,7 @@ class ProjectContractTest(unittest.TestCase):
             r"RT_WAITING_FOREVER\) != RT_EOK",
         )
 
-    def test_audio_diagnostics_and_documentation_contract(self):
+    def test_audio_diagnostics_are_removed(self):
         diagnostics_path = ROOT / "audio" / "pal_audio_diagnostics.c"
         diagnostics_header_path = ROOT / "audio" / "pal_audio_diagnostics.h"
         memory = (ROOT / "platform" / "pal_memory.c").read_text(
@@ -478,43 +478,39 @@ class ProjectContractTest(unittest.TestCase):
         elf_check = (ROOT / "tools" / "check_elf.py").read_text(
             encoding="utf-8"
         )
+        contract = (ROOT / "audio" / "pal_audio_contract.c").read_text(
+            encoding="utf-8"
+        )
+        audio_sources = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in (ROOT / "audio").glob("*.c")
+        )
+        port_header = (ROOT / "audio" / "pal_audio_port.h").read_text(
+            encoding="utf-8"
+        )
+        port_source = (ROOT / "audio" / "pal_audio_port.c").read_text(
+            encoding="utf-8"
+        )
+        i2s_header = (
+            BSP_ROOT / "libraries" / "HAL_Drivers" / "drv_i2s.h"
+        ).read_text(encoding="utf-8")
         i2s_source = (
             BSP_ROOT / "libraries" / "HAL_Drivers" / "drv_i2s.c"
         ).read_text(encoding="utf-8")
 
-        self.assertTrue(diagnostics_path.is_file())
-        self.assertTrue(diagnostics_header_path.is_file())
-        diagnostics = diagnostics_path.read_text(encoding="utf-8")
-        header = diagnostics_header_path.read_text(encoding="utf-8")
-        for metric in (
-            "rendered_blocks",
-            "active_voices",
-            "peak_voices",
-            "render_max_us",
-            "write_max_us",
-            "hardware_underruns",
-            "sound_drops",
-            "cache_current_bytes",
-            "cache_peak_bytes",
-            "audio_stack_used_bytes",
-        ):
-            self.assertIn(metric, header)
-        for metric in (
-            "driver_tx_messages",
-            "driver_rx_messages",
-            "driver_fifo_irqs",
-            "driver_sem_releases",
-            "driver_completion_requests",
-            "driver_mq_send_failures",
-        ):
-            self.assertIn(metric, header)
-        self.assertIn("MSH_CMD_EXPORT(pal_audio", diagnostics)
-        self.assertIn("driver tx=", diagnostics)
-        self.assertIn("pal_audio_diagnostics_get", memory)
+        self.assertFalse(diagnostics_path.exists())
+        self.assertFalse(diagnostics_header_path.exists())
+        self.assertNotIn("pal_audio_diagnostics", memory)
+        self.assertNotIn("pal_audio_diagnostics", contract)
+        self.assertNotIn("pal_audio_port_metrics", port_header)
+        self.assertNotIn("pal_audio_port_metrics_get", port_source)
+        self.assertNotIn("drv_i2s_sdlpal_metrics", i2s_header)
+        self.assertNotIn("drv_i2s_sdlpal_metrics_get", i2s_source)
+        self.assertNotIn("sdlpal_i2s_metrics", i2s_source)
+        self.assertNotIn("MSH_CMD_EXPORT(pal_audio", audio_sources)
+        self.assertNotIn("msh /> pal_audio", readme)
         self.assertIn("PAL_AUDIO_MAX_BYTES = 48 * 1024", elf_check)
         self.assertIn("#if defined(BSP_USING_SDLPAL)", i2s_source)
-        self.assertIn("drv_i2s_sdlpal_metrics_get", i2s_source)
-        self.assertIn("sdlpal_i2s_metrics", i2s_source)
         self.assertIn("sdlpal_reset_playback_state", i2s_source)
         self.assertIn("rt_mq_control(snd_dev->tx_mq", i2s_source)
         self.assertIn("rt_sem_control(snd_dev->tx_sem", i2s_source)
@@ -524,13 +520,10 @@ class ProjectContractTest(unittest.TestCase):
             i2s_source.index("if (tx_buff == RT_NULL)"),
             i2s_source.index("rt_memset(tx_buff, 0, TX_FIFO_SIZE)"),
         )
-        for text in ("mus.mkf", "voc.mkf", "sound0", "pal_audio", "10"):
+        for text in ("mus.mkf", "voc.mkf", "sound0", "10"):
             self.assertIn(text, readme)
         self.assertIn("audio/third_party", upstream)
 
-        contract = (ROOT / "audio" / "pal_audio_contract.c").read_text(
-            encoding="utf-8"
-        )
         self.assertIn("PAL_AUDIO_MAX_LIVE_HANDLES", contract)
         self.assertIn(
             "pal_audio_release_capacity_covers_all_owners", contract
