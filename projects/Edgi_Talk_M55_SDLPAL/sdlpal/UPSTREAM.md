@@ -31,3 +31,7 @@ Local changes to the snapshot are intentionally small:
    read-only font data in external Flash instead of copying it into DTCM.
 5. Target-owned temporary surface pixels use the explicit hot-memory policy,
    and guarded lifecycle hooks emit SRAM, HyperRAM, GFX and stack diagnostics.
+6. Normal engine allocations use platform-owned libc hooks that prefer the
+   on-chip SRAM heap, then a fixed 128 KiB GFX resource pool, and use HyperRAM
+   only as the final fallback. The allocation changes remain in platform hooks
+   and the platform-specific shim; upstream battle and fight code is unchanged.

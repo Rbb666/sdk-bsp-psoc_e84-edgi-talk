@@ -331,6 +331,23 @@ class ProjectContractTest(unittest.TestCase):
         self.assertIn("0x20000", linker)
         self.assertIn("Glob('*.c')", platform_build)
 
+    def test_engine_heap_has_a_fixed_gfx_fallback_pool(self):
+        heap_source = (
+            ROOT / "platform" / "pal_engine_heap.c"
+        ).read_text(encoding="utf-8")
+        linker = (ROOT / "board" / "linker_scripts" / "link.ld").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn('section(".cy_gpu_buf.sdlpal_resource")', heap_source)
+        self.assertIn("__sdlpal_resource_start__", linker)
+        self.assertIn("KEEP(*(.cy_gpu_buf.sdlpal_resource))", linker)
+        self.assertIn("__sdlpal_resource_end__", linker)
+        self.assertIn(
+            "(__sdlpal_resource_end__ - __sdlpal_resource_start__) == 0x20000",
+            linker,
+        )
+
     def test_save_path_is_platform_owned_and_bounded(self):
         hook_header = ROOT / "platform" / "pal_engine_io_hooks.h"
         adapter_source = ROOT / "platform" / "pal_engine_io.c"

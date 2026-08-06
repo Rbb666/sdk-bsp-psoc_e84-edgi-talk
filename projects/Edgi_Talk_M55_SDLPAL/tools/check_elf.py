@@ -18,6 +18,7 @@ LCD_INDEXED_STAGING_BYTES = 320 * 200
 PAL_LARGE_MIN_BYTES = 593362
 PAL_LARGE_MAX_BYTES = 0x93000
 PAL_SAVE_RESERVE_BYTES = 192 * 1024
+PAL_RESOURCE_POOL_BYTES = 128 * 1024
 VALID_ROTATIONS = (0, 90, 180, 270)
 ITCM_HOT_SYMBOLS = (
     "PAL_GameMain",
@@ -140,6 +141,8 @@ def validate_layout(
         "__sdlpal_large_end__",
         "__sdlpal_save_start__",
         "__sdlpal_save_end__",
+        "__sdlpal_resource_start__",
+        "__sdlpal_resource_end__",
         "__sdlpal_itcm_start__",
         "__sdlpal_itcm_end__",
         "__ram_vectors_end__",
@@ -283,6 +286,27 @@ def validate_layout(
             ):
                 errors.append("SDLPal save reserve is outside GFX memory")
 
+        resource_names = (
+            "__sdlpal_resource_start__",
+            "__sdlpal_resource_end__",
+        )
+        if all(name in symbols for name in resource_names):
+            resource_start = symbols[resource_names[0]]
+            resource_end = symbols[resource_names[1]]
+            resource_bytes = resource_end - resource_start
+            if resource_bytes != PAL_RESOURCE_POOL_BYTES:
+                errors.append(
+                    "SDLPal engine resource pool must be "
+                    f"{PAL_RESOURCE_POOL_BYTES} bytes, got {resource_bytes}"
+                )
+            if (
+                resource_start < origin
+                or resource_end > origin + length
+                or resource_start < symbols["__cy_gpu_buf_start__"]
+                or resource_end > symbols["__cy_gpu_buf_end__"]
+            ):
+                errors.append("SDLPal engine resource pool is outside GFX memory")
+
     secondary = regions.get("m55_data_secondary")
     if secondary is None:
         errors.append("missing m55_data_secondary map region")
@@ -370,6 +394,10 @@ def main() -> int:
     save_bytes = (
         symbols["__sdlpal_save_end__"] - symbols["__sdlpal_save_start__"]
     )
+    resource_bytes = (
+        symbols["__sdlpal_resource_end__"]
+        - symbols["__sdlpal_resource_start__"]
+    )
     thread_bytes = (
         symbols["__sdlpal_thread_end__"] - symbols["__sdlpal_thread_start__"]
     )
@@ -384,7 +412,7 @@ def main() -> int:
     print(
         f"PASS rotation={args.rotation} framebuffer={PAL_FRAMEBUFFER_BYTES} "
         f"gfx={gfx_bytes} indexed={indexed_bytes} large={large_bytes} "
-        f"save={save_bytes} "
+        f"save={save_bytes} resource={resource_bytes} "
         f"thread={thread_bytes} "
         f"itcm={itcm_bytes} itcm_reserved={itcm_reserved} "
         f"dtcm_headroom={dtcm_headroom}"

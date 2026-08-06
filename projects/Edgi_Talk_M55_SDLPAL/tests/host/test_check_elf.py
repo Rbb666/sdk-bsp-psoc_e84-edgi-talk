@@ -27,7 +27,15 @@ class ElfValidationTests(unittest.TestCase):
             "__sdlpal_large_end__": 0x26309600 + 593408,
             "__sdlpal_save_start__": 0x26309600 + 593408,
             "__sdlpal_save_end__": 0x26309600 + 593408 + 196608,
-            "__cy_gpu_buf_end__": 0x26309600 + 593408 + 196608,
+            "__sdlpal_resource_start__": (
+                0x26309600 + 593408 + 196608 + 131072
+            ),
+            "__sdlpal_resource_end__": (
+                0x26309600 + 593408 + 196608 + 131072 + 131072
+            ),
+            "__cy_gpu_buf_end__": (
+                0x26309600 + 593408 + 196608 + 131072 + 131072
+            ),
             "__sdlpal_itcm_start__": 0x00001000,
             "__sdlpal_itcm_end__": 0x0001D000,
             "__ram_vectors_end__": 0x0001D800,
@@ -137,6 +145,24 @@ class ElfValidationTests(unittest.TestCase):
         self.symbols["__sdlpal_save_end__"] = 0x26520000
         errors = check_elf.validate_layout(self.symbols, self.regions, 0)
         self.assertTrue(any("save reserve" in error for error in errors))
+
+    def test_rejects_missing_resource_pool_layout(self):
+        del self.symbols["__sdlpal_resource_end__"]
+        errors = check_elf.validate_layout(self.symbols, self.regions, 0)
+        self.assertTrue(any("__sdlpal_resource_end__" in error for error in errors))
+
+    def test_rejects_wrong_resource_pool_size(self):
+        self.symbols["__sdlpal_resource_end__"] = (
+            self.symbols["__sdlpal_resource_start__"] + 131071
+        )
+        errors = check_elf.validate_layout(self.symbols, self.regions, 0)
+        self.assertTrue(any("131072" in error for error in errors))
+
+    def test_rejects_resource_pool_outside_gfx(self):
+        self.symbols["__sdlpal_resource_start__"] = 0x264F0000
+        self.symbols["__sdlpal_resource_end__"] = 0x26510000
+        errors = check_elf.validate_layout(self.symbols, self.regions, 0)
+        self.assertTrue(any("resource pool" in error for error in errors))
 
     def test_portrait_rejects_scanout_buffer(self):
         self.symbols["graphics_scanout_storage"] = 0x262C0000
