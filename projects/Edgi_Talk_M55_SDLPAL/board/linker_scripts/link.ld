@@ -480,7 +480,7 @@ SECTIONS
     } > m55_data_secondary
 
     ASSERT(
-      SIZEOF(.usb_host_data) >= 0x7000,
+      SIZEOF(.usb_host_data) == 0 || SIZEOF(.usb_host_data) >= 0x7000,
       "CherryUSB Host state is smaller than the prebuilt DWC2 ABI expects."
     )
     ASSERT(
@@ -579,7 +579,7 @@ SECTIONS
     } > m55_data_secondary
 
     ASSERT(
-      SIZEOF(.sdlpal_usb) >= 0x800,
+      SIZEOF(.sdlpal_usb) == 0 || SIZEOF(.sdlpal_usb) >= 0x800,
       "SDLPal USB section must contain the static 2 KiB worker stack."
     )
     ASSERT(

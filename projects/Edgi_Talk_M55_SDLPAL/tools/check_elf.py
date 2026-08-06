@@ -14,6 +14,7 @@ from typing import Dict, Iterable, List, Tuple
 PAL_FRAMEBUFFER_BYTES = 128 * 1024
 PAL_THREAD_STACK_BYTES = 24 * 1024
 PAL_AUDIO_MAX_BYTES = 48 * 1024
+PAL_USB_MIN_BYTES = 2 * 1024
 PAL_USB_MAX_BYTES = 4 * 1024
 USB_HOST_MIN_BYTES = 0x7000
 USB_HOST_MAX_BYTES = 0x10000
@@ -24,6 +25,7 @@ PAL_LARGE_MAX_BYTES = 0x93000
 PAL_SAVE_RESERVE_BYTES = 192 * 1024
 PAL_RESOURCE_POOL_BYTES = 128 * 1024
 VALID_ROTATIONS = (0, 90, 180, 270)
+VALID_INPUT_MODES = ("touch", "keyboard")
 ITCM_HOT_SYMBOLS = (
     "PAL_GameMain",
     "PAL_StartFrame",
@@ -114,6 +116,26 @@ def parse_map(text: str) -> Tuple[Dict[str, Tuple[int, int]], Dict[str, Tuple[in
     return regions, sections
 
 
+def add_input_section_symbols(
+    symbols: Dict[str, int], sections: Dict[str, Tuple[int, int]]
+) -> None:
+    """Recover input-section boundaries omitted by nm for empty sections."""
+    for section_name, start_name, end_name in (
+        ("sdlpal_usb", "__sdlpal_usb_start__", "__sdlpal_usb_end__"),
+        (
+            "usb_host_data",
+            "__usb_host_data_start__",
+            "__usb_host_data_end__",
+        ),
+    ):
+        section = sections.get(section_name)
+        if section is None:
+            continue
+        origin, length = section
+        symbols.setdefault(start_name, origin)
+        symbols.setdefault(end_name, origin + length)
+
+
 def _forbidden_symbol_errors(names: Iterable[str]) -> List[str]:
     errors: List[str] = []
     for name in sorted(names):
@@ -127,6 +149,7 @@ def validate_layout(
     symbols: Dict[str, int],
     regions: Dict[str, Tuple[int, int]],
     rotation: int,
+    input_mode: str = "keyboard",
 ) -> List[str]:
     errors = _forbidden_symbol_errors(symbols)
     required = (
@@ -163,6 +186,8 @@ def validate_layout(
 
     if rotation not in VALID_ROTATIONS:
         errors.append(f"invalid rotation: {rotation}")
+    if input_mode not in VALID_INPUT_MODES:
+        errors.append(f"invalid input mode: {input_mode}")
 
     itcm = regions.get("m55_code_INTERNAL")
     if itcm is None:
@@ -359,25 +384,35 @@ def validate_layout(
             errors.append("SDLPal USB storage is outside Secondary SRAM")
         if usb_start < audio_end or usb_end < usb_start:
             errors.append("SDLPal USB storage overlaps audio storage")
-        if usb_end - usb_start > PAL_USB_MAX_BYTES:
+        usb_bytes = usb_end - usb_start
+        if input_mode == "keyboard" and usb_bytes < PAL_USB_MIN_BYTES:
+            errors.append("SDLPal USB storage is smaller than 2 KiB")
+        if usb_bytes > PAL_USB_MAX_BYTES:
             errors.append("SDLPal USB storage exceeds 4 KiB")
+        if input_mode == "touch" and usb_bytes != 0:
+            errors.append("SDLPal USB storage must be empty in touch mode")
         if symbols["__HeapBase"] < usb_end:
             errors.append("primary heap overlaps SDLPal USB storage")
         if host_start < origin or host_end > origin + length:
             errors.append("CherryUSB Host state is outside Secondary SRAM")
         host_bytes = host_end - host_start
-        if host_bytes < USB_HOST_MIN_BYTES:
+        if input_mode == "keyboard" and host_bytes < USB_HOST_MIN_BYTES:
             errors.append("CherryUSB Host state is smaller than 28 KiB")
         if host_bytes > USB_HOST_MAX_BYTES:
             errors.append("CherryUSB Host state exceeds 64 KiB")
-        for reserved_start, reserved_end in (
-            (thread_start, thread_end),
-            (audio_start, audio_end),
-            (usb_start, usb_end),
-        ):
-            if host_start < reserved_end and reserved_start < host_end:
-                errors.append("CherryUSB Host state overlaps SDLPal static storage")
-                break
+        if input_mode == "touch" and host_bytes != 0:
+            errors.append("CherryUSB Host state must be empty in touch mode")
+        if input_mode == "keyboard":
+            for reserved_start, reserved_end in (
+                (thread_start, thread_end),
+                (audio_start, audio_end),
+                (usb_start, usb_end),
+            ):
+                if host_start < reserved_end and reserved_start < host_end:
+                    errors.append(
+                        "CherryUSB Host state overlaps SDLPal static storage"
+                    )
+                    break
         if symbols["__HeapBase"] < host_end:
             errors.append("primary heap overlaps CherryUSB Host state")
         if symbols["__HeapBase"] < thread_end:
@@ -391,12 +426,50 @@ def validate_layout(
     return errors
 
 
+def validate_input_sections(
+    sections: Dict[str, Tuple[int, int]], input_mode: str
+) -> List[str]:
+    errors: List[str] = []
+    if input_mode not in VALID_INPUT_MODES:
+        return [f"invalid input mode: {input_mode}"]
+
+    usb_section = sections.get("sdlpal_usb")
+    host_section = sections.get("usb_host_data")
+    if usb_section is None:
+        errors.append("map is missing .sdlpal_usb")
+    if host_section is None:
+        errors.append("map is missing .usb_host_data")
+    if usb_section is None or host_section is None:
+        return errors
+
+    usb_bytes = usb_section[1]
+    host_bytes = host_section[1]
+    if input_mode == "keyboard":
+        if usb_bytes < PAL_USB_MIN_BYTES:
+            errors.append("map .sdlpal_usb is smaller than 2 KiB")
+        if usb_bytes > PAL_USB_MAX_BYTES:
+            errors.append("map .sdlpal_usb exceeds 4 KiB")
+        if host_bytes < USB_HOST_MIN_BYTES:
+            errors.append("map .usb_host_data is smaller than 28 KiB")
+        if host_bytes > USB_HOST_MAX_BYTES:
+            errors.append("map .usb_host_data exceeds 64 KiB")
+    else:
+        if usb_bytes != 0:
+            errors.append("map .sdlpal_usb must be empty in touch mode")
+        if host_bytes != 0:
+            errors.append("map .usb_host_data must be empty in touch mode")
+    return errors
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--elf", required=True, type=pathlib.Path)
     parser.add_argument("--map", required=True, dest="map_file", type=pathlib.Path)
     parser.add_argument("--nm", default="arm-none-eabi-nm")
     parser.add_argument("--rotation", required=True, type=int)
+    parser.add_argument(
+        "--input-mode", required=True, choices=VALID_INPUT_MODES
+    )
     args = parser.parse_args()
 
     if not args.elf.is_file():
@@ -416,7 +489,10 @@ def main() -> int:
         return 2
     symbols = parse_nm_output(nm_result.stdout)
     regions, sections = parse_map(args.map_file.read_text(encoding="utf-8"))
-    errors = validate_layout(symbols, regions, args.rotation)
+    add_input_section_symbols(symbols, sections)
+    errors = validate_layout(
+        symbols, regions, args.rotation, input_mode=args.input_mode
+    )
 
     framebuffer = sections.get("pal_framebuffer")
     if framebuffer is None:
@@ -437,18 +513,7 @@ def main() -> int:
         errors.append("map is missing .sdlpal_audio")
     elif audio_section[1] > PAL_AUDIO_MAX_BYTES:
         errors.append("map .sdlpal_audio exceeds 48 KiB")
-    usb_section = sections.get("sdlpal_usb")
-    if usb_section is None:
-        errors.append("map is missing .sdlpal_usb")
-    elif usb_section[1] > PAL_USB_MAX_BYTES:
-        errors.append("map .sdlpal_usb exceeds 4 KiB")
-    host_section = sections.get("usb_host_data")
-    if host_section is None:
-        errors.append("map is missing .usb_host_data")
-    elif host_section[1] < USB_HOST_MIN_BYTES:
-        errors.append("map .usb_host_data is smaller than 28 KiB")
-    elif host_section[1] > USB_HOST_MAX_BYTES:
-        errors.append("map .usb_host_data exceeds 64 KiB")
+    errors.extend(validate_input_sections(sections, args.input_mode))
 
     if errors:
         for error in errors:
@@ -490,7 +555,8 @@ def main() -> int:
         itcm_origin + itcm_length - symbols["__ram_vectors_end__"]
     )
     print(
-        f"PASS rotation={args.rotation} framebuffer={PAL_FRAMEBUFFER_BYTES} "
+        f"PASS input={args.input_mode} rotation={args.rotation} "
+        f"framebuffer={PAL_FRAMEBUFFER_BYTES} "
         f"gfx={gfx_bytes} indexed={indexed_bytes} large={large_bytes} "
         f"save={save_bytes} resource={resource_bytes} "
         f"thread={thread_bytes} audio={audio_bytes} usb={usb_bytes} "

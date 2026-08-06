@@ -162,6 +162,72 @@ class ElfValidationTests(unittest.TestCase):
         errors = check_elf.validate_layout(self.symbols, self.regions, 0)
         self.assertTrue(any("overlaps" in error for error in errors))
 
+    def test_touch_mode_requires_empty_usb_host_sections(self):
+        usb_start = self.symbols["__sdlpal_usb_start__"]
+        self.symbols["__sdlpal_usb_end__"] = usb_start
+        self.symbols["__usb_host_data_start__"] = usb_start
+        self.symbols["__usb_host_data_end__"] = usb_start
+        self.symbols["__HeapBase"] = usb_start
+
+        self.assertEqual(
+            check_elf.validate_layout(
+                self.symbols, self.regions, 0, input_mode="touch"
+            ),
+            [],
+        )
+
+        self.symbols["__usb_host_data_end__"] = usb_start + 32 * 1024
+        errors = check_elf.validate_layout(
+            self.symbols, self.regions, 0, input_mode="touch"
+        )
+        self.assertTrue(any("must be empty" in error for error in errors))
+
+    def test_keyboard_mode_requires_worker_storage(self):
+        usb_start = self.symbols["__sdlpal_usb_start__"]
+        self.symbols["__sdlpal_usb_end__"] = (
+            usb_start + check_elf.PAL_USB_MIN_BYTES - 1
+        )
+        errors = check_elf.validate_layout(
+            self.symbols, self.regions, 0, input_mode="keyboard"
+        )
+        self.assertTrue(any("smaller than 2 KiB" in error for error in errors))
+
+    def test_mode_specific_map_section_policy(self):
+        touch_sections = {
+            "sdlpal_usb": (0x2606E0B8, 0),
+            "usb_host_data": (0x2606E0B8, 0),
+        }
+        self.assertEqual(
+            check_elf.validate_input_sections(touch_sections, "touch"), []
+        )
+
+        touch_sections["usb_host_data"] = (0x2606E0B8, 1)
+        errors = check_elf.validate_input_sections(touch_sections, "touch")
+        self.assertTrue(any("must be empty" in error for error in errors))
+
+        keyboard_sections = {
+            "sdlpal_usb": (0x2606E0B8, check_elf.PAL_USB_MIN_BYTES),
+            "usb_host_data": (0x2606E8B8, check_elf.USB_HOST_MIN_BYTES),
+        }
+        self.assertEqual(
+            check_elf.validate_input_sections(keyboard_sections, "keyboard"),
+            [],
+        )
+
+    def test_empty_input_boundaries_are_recovered_from_map(self):
+        symbols = {}
+        sections = {
+            "sdlpal_usb": (0x2606AA48, 0),
+            "usb_host_data": (0x26060000, 0),
+        }
+
+        check_elf.add_input_section_symbols(symbols, sections)
+
+        self.assertEqual(symbols["__sdlpal_usb_start__"], 0x2606AA48)
+        self.assertEqual(symbols["__sdlpal_usb_end__"], 0x2606AA48)
+        self.assertEqual(symbols["__usb_host_data_start__"], 0x26060000)
+        self.assertEqual(symbols["__usb_host_data_end__"], 0x26060000)
+
     def test_rejects_invalid_indexed_staging_layout(self):
         del self.symbols["__lcd_indexed_staging_end__"]
         errors = check_elf.validate_layout(self.symbols, self.regions, 0)

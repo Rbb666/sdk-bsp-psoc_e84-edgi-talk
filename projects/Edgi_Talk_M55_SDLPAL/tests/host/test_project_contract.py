@@ -49,6 +49,47 @@ class ProjectContractTest(unittest.TestCase):
         self.assertNotIn("Default portrait rotation block", build_matrix)
         self.assertNotIn("if ($updated -eq $originalHeader)", build_matrix)
 
+    def test_input_rotation_matrix_restores_source_configuration(self):
+        build_matrix = (
+            ROOT / "tools" / "build_matrix.ps1"
+        ).read_text(encoding="utf-8")
+        input_matrix_path = ROOT / "tools" / "build_input_matrix.ps1"
+
+        self.assertIn('[ValidateSet("touch", "keyboard")]', build_matrix)
+        self.assertIn('[string]$InputMode = "keyboard"', build_matrix)
+        self.assertIn("--input-mode $InputMode", build_matrix)
+        self.assertIn("& $Scons -c", build_matrix)
+        self.assertIn(
+            '"$InputMode-rotation-$rotation-size.txt"', build_matrix
+        )
+
+        self.assertTrue(input_matrix_path.is_file())
+        input_matrix = input_matrix_path.read_text(encoding="utf-8")
+        self.assertIn(
+            'foreach ($inputMode in "touch", "keyboard")', input_matrix
+        )
+        self.assertIn("function Set-ConfigBoolean", input_matrix)
+        self.assertIn("function Set-HeaderDefine", input_matrix)
+        for symbol in (
+            "BSP_SDLPAL_INPUT_TOUCH",
+            "BSP_SDLPAL_INPUT_USB_KEYBOARD",
+            "RT_USING_CHERRYUSB",
+            "RT_CHERRYUSB_HOST",
+            "RT_CHERRYUSB_HOST_DWC2_INFINEON",
+            "RT_CHERRYUSB_HOST_HID",
+            "CONFIG_USBHOST_MAX_INTF_ALTSETTINGS",
+        ):
+            self.assertIn(symbol, input_matrix)
+        self.assertIn("& $BuildMatrix", input_matrix)
+        self.assertIn("-InputMode $inputMode", input_matrix)
+        self.assertIn("finally", input_matrix)
+        self.assertIn(
+            "WriteAllText($configPath, $originalConfig", input_matrix
+        )
+        self.assertIn(
+            "WriteAllText($headerPath, $originalHeader", input_matrix
+        )
+
     def test_target_contract(self):
         sconstruct = (ROOT / "SConstruct").read_text(encoding="utf-8")
         project_kconfig = (ROOT / "Kconfig").read_text(encoding="utf-8")
@@ -249,6 +290,10 @@ class ProjectContractTest(unittest.TestCase):
         self.assertIn("*usbh_hub.o(.bss*)", linker)
         self.assertIn("*usbh_hid.o(.bss*)", linker)
         self.assertIn("*libusb_hc_dwc2.a:usb_hc_dwc2.o(.bss*)", linker)
+        self.assertIn(
+            "SIZEOF(.usb_host_data) == 0 ||", linker
+        )
+        self.assertIn("SIZEOF(.sdlpal_usb) == 0 ||", linker)
         self.assertIn("choice", project_kconfig)
         self.assertIn("config BSP_SDLPAL_INPUT_TOUCH", project_kconfig)
         self.assertIn(
@@ -903,11 +948,21 @@ class ProjectContractTest(unittest.TestCase):
             "E04",
             "E05",
             "audio",
-            "USB 键盘阶段一",
+            "输入模式",
+            "BSP_SDLPAL_INPUT_USB_KEYBOARD",
+            "BSP_SDLPAL_INPUT_TOUCH",
+            "build_input_matrix.ps1",
+            "--input-mode keyboard",
             "[PAL USB] host ready",
             "[PAL USB] keyboard connected",
             "[PAL KEY] DOWN",
-            "阶段一不向 SDLPal 注入",
+            "Enter/A",
+            "Escape/B",
+            "PageUp/PageDown",
+            "(16, 0, 768, 480)",
+            "(0, 250, 480, 300)",
+            "断开键盘时立即释放",
+            "不自动回退到触摸",
             "CONFIG_CONFIG_USBHOST_MAX_INTF_ALTSETTINGS",
             "必须保持为 `12`",
         ):
@@ -916,6 +971,7 @@ class ProjectContractTest(unittest.TestCase):
         self.assertTrue((ROOT / "tools" / "check_elf.py").is_file())
         self.assertTrue((ROOT / "tools" / "check_stack_usage.py").is_file())
         self.assertTrue((ROOT / "tools" / "build_matrix.ps1").is_file())
+        self.assertTrue((ROOT / "tools" / "build_input_matrix.ps1").is_file())
         self.assertIn("check_stack_usage.py", project_readme)
         self.assertIn("project_name: Edgi_Talk_M55_SDLPAL", bsp_manifest)
 

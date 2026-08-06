@@ -2,6 +2,8 @@ param(
     [string]$ToolchainBin = "D:\workspace_work\env-windows\tools\gnu_gcc\arm_gcc\mingw\bin",
     [string]$Scons = "D:\workspace_work\env-windows\.venv\Scripts\scons.exe",
     [string]$Python = "D:\workspace_work\env-windows\.venv\Scripts\python.exe",
+    [ValidateSet("touch", "keyboard")]
+    [string]$InputMode = "keyboard",
     [int]$Jobs = 16
 )
 
@@ -104,6 +106,10 @@ try {
             $headerPath, (New-RotationHeader $rotation), $utf8NoBom
         )
 
+        & $Scons -c
+        if ($LASTEXITCODE -ne 0) {
+            throw "Clean failed for rotation $rotation"
+        }
         & $Scons "-j$Jobs"
         if ($LASTEXITCODE -ne 0) {
             throw "Build failed for rotation $rotation"
@@ -113,11 +119,13 @@ try {
         if ($LASTEXITCODE -ne 0) {
             throw "Size report failed for rotation $rotation"
         }
-        $reportPath = Join-Path $reportsPath "rotation-$rotation-size.txt"
+        $reportPath = Join-Path $reportsPath `
+            "$InputMode-rotation-$rotation-size.txt"
         [System.IO.File]::WriteAllLines($reportPath, $sizeOutput, $utf8NoBom)
 
         $validationOutput = & $Python $checkerPath `
-            --elf $elfPath --map $mapPath --nm $nmTool --rotation $rotation
+            --elf $elfPath --map $mapPath --nm $nmTool `
+            --rotation $rotation --input-mode $InputMode
         if ($LASTEXITCODE -ne 0) {
             throw "ELF validation failed for rotation $rotation"
         }
@@ -138,4 +146,4 @@ finally {
     Pop-Location
 }
 
-Write-Host "Rotation matrix passed; reports: $reportsPath"
+Write-Host "$InputMode rotation matrix passed; reports: $reportsPath"

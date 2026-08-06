@@ -1,14 +1,14 @@
 # SDLPal for PSoC Edge M55
 
-本工程将 SDLPal 直接适配到 Edgi-Talk PSoC Edge M55。显示、触摸、SD
+本工程将 SDLPal 直接适配到 Edgi-Talk PSoC Edge M55。显示、输入、SD
 资源和存档路径已经接通，不依赖 LVGL。当前阶段的 audio is intentionally
 disabled；屏幕显示、资源加载和触摸游玩完成实板验收后再实现音频。
 
 ## 功能范围
 
-- 默认使用屏幕物理方向：480x800 竖屏。
-- 320x200 8-bit 游戏画面以 3:2 最近邻放大到 480x300。
-- 屏幕下方显示方向、A、B、PgUp、PgDn 色块，支持多点触摸组合键。
+- 默认使用 USB Host 键盘和 800x480 横屏显示。
+- 320x200 8-bit 游戏画面按 8:5 等比例最近邻放大；键盘模式不显示触摸按键。
+- 可通过 Kconfig 改为触摸模式，显示方向、A、B、PgUp、PgDn 色块并支持组合键。
 - 资源直接读取 `/sdcard/pal`，存档目录为 `/sdcard/pal/save`。
 - 不编译 LVGL，不创建音频线程或音频设备。
 - 可配置 0/90/180/270 度；90/270 度由 LCD 驱动使用 VG-Lite 旋转。
@@ -52,15 +52,22 @@ rtk powershell -NoProfile -Command "`$env:RTT_EXEC_PATH='D:\workspace_work\env-w
 启动顺序：先确保 Secure M33 和 Non-secure M33 工程已正确烧录并开启 M55，
 再烧录本 M55 固件。
 
-四方向构建与 ELF 约束检查：
+当前输入模式的四方向构建与 ELF 约束检查：
 
 ```powershell
-rtk powershell -NoProfile -ExecutionPolicy Bypass -File projects\Edgi_Talk_M55_SDLPAL\tools\build_matrix.ps1
+rtk powershell -NoProfile -ExecutionPolicy Bypass -File projects\Edgi_Talk_M55_SDLPAL\tools\build_matrix.ps1 -InputMode keyboard
 ```
 
-结果保存在 `reports/rotation-*-size.txt`。检查器会拒绝 LVGL、音频设备/线程、
-错误的 framebuffer 尺寸、DTCM/GFX 越界、错误的 192 KiB 保存保留区，以及缺失
-或多余的横屏 scanout buffer。
+触摸/键盘两种输入模式和四个方向的完整 8 组矩阵：
+
+```powershell
+rtk powershell -NoProfile -ExecutionPolicy Bypass -File projects\Edgi_Talk_M55_SDLPAL\tools\build_input_matrix.ps1
+```
+
+结果保存在 `reports/<input>-rotation-*-size.txt`。检查器会拒绝 LVGL、错误的
+framebuffer 尺寸、DTCM/GFX 越界、错误的 192 KiB 保存保留区、缺失或多余的
+横屏 scanout buffer，以及与输入模式不符的 USB 专用段。单独检查 ELF 时必须
+明确输入模式，例如 `--rotation 90 --input-mode keyboard`。
 
 SDLPal 单函数静态栈帧由 GCC `.su` 报告检查，门限为 12 KiB：
 
@@ -70,17 +77,30 @@ rtk D:\workspace_work\env-windows\.venv\Scripts\python.exe tools\check_stack_usa
 
 ## 屏幕方向
 
-默认配置为 `CONFIG_M55_BSP_LCD_ROTATION_0=y` 和
-`CONFIG_BSP_LCD_ROTATION_DEGREES=0`。在 RT-Thread Settings 的
+默认配置为 `CONFIG_M55_BSP_LCD_ROTATION_90=y` 和
+`CONFIG_BSP_LCD_ROTATION_DEGREES=90`。在 RT-Thread Settings 的
 `Hardware Drivers Config -> Onboard Peripheral Drivers -> LCD logical rotation`
 中可选择 0/90/180/270：
 
 | 配置 | 逻辑分辨率 | 实现 |
 | --- | --- | --- |
-| 0 | 480x800 | 物理竖屏，默认 |
-| 90 | 800x480 | VG-Lite 旋转并使用独立 scanout buffer |
+| 0 | 480x800 | 物理竖屏 |
+| 90 | 800x480 | VG-Lite 旋转并使用独立 scanout buffer，默认 |
 | 180 | 480x800 | 面板扫描方向翻转 |
 | 270 | 800x480 | VG-Lite 旋转并使用独立 scanout buffer |
+
+## 输入模式
+
+在 RT-Thread Settings 的 `SDLPal input method` 中选择编译期输入后端，只能启用
+一个：
+
+- `BSP_SDLPAL_INPUT_USB_KEYBOARD`：默认。启用 CherryUSB DWC2 Host 和 HID，
+  不编译触摸输入后端、不绘制触摸按键。
+- `BSP_SDLPAL_INPUT_TOUCH`：使用屏幕触摸按键，不编译 CherryUSB Host 和键盘
+  worker，其 `.sdlpal_usb` 与 `.usb_host_data` 链接段必须为空。
+
+模式在编译期固定。键盘未连接或运行中断开时不自动回退到触摸，重新接入兼容
+键盘后 Host 会重新枚举并恢复输入。
 
 ## 触摸操作
 
@@ -98,7 +118,7 @@ rtk D:\workspace_work\env-windows\.venv\Scripts\python.exe tools\check_stack_usa
 - B：取消或返回。
 - PgUp/PgDn：SDLPal 原生上一页/下一页输入。
 
-## USB 键盘阶段一
+## USB 键盘操作
 
 当前固件在 M55 应用启动时初始化 CherryUSB DWC2 Host，并接收标准 USB
 Boot Protocol 键盘的 8 字节输入报告。将键盘直接连接到开发板 USB Host
@@ -117,16 +137,25 @@ Boot Protocol 键盘的 8 字节输入报告。将键盘直接连接到开发板
 但 action 显示为 `NONE`。不提供 Boot 键盘接口、包长小于 8 字节或只提供
 厂商自定义 NKRO 接口的设备会打印 `HID ignored`，不会占用当前键盘通道。
 
-阶段一不向 SDLPal 注入键盘事件，游戏交互仍使用屏幕触摸按键；该阶段只验收
-Host 正常枚举、插拔恢复以及串口按键映射。每次按键只应产生一次 DOWN 和一次
-UP；断开键盘时会补发仍处于按下状态的 UP，并打印
-`[PAL USB] keyboard disconnected`。
+游戏操作对应关系为：方向键移动或选择，Enter/A 确认，Escape/B 取消，
+PageUp/PageDown 翻页。支持方向键与动作键同时按下；按键状态由 USB worker
+原子发布，SDLPal 输入桥统一生成游戏事件。每次按键只打印一次 DOWN 和一次 UP；
+断开键盘时立即释放所有游戏控制状态并打印 `[PAL USB] keyboard disconnected`，
+避免粘键。
 
 仓库中的 DWC2 Host 驱动为按 CherryUSB 默认配置预编译的静态库，因此
 `CONFIG_CONFIG_USBHOST_MAX_INTF_ALTSETTINGS` 必须保持为 `12`。修改这个值会
 改变 Host 结构体布局，导致预编译驱动在设备接入中断中使用错误的成员偏移。
 为保留 DTCM 主栈空间，Host 总线、Hub、HID 和 DWC2 静态状态统一放入
 Secondary SRAM 的 `.usb_host_data` 段。
+
+## 游戏显示区域
+
+触摸模式保留原有按键区，游戏区域为竖屏 `(0, 0, 480, 300)`、横屏
+`(160, 0, 480, 300)`。键盘模式删除屏幕触摸按键，将 320x200 游戏画面按
+8:5 等比例放大并居中：竖屏为 `(0, 250, 480, 300)`，横屏为
+`(16, 0, 768, 480)`；未覆盖区域使用黑色填充。VG-Lite 与 CPU fallback 使用
+同一视口计算。
 
 ## 启动状态
 
@@ -135,7 +164,7 @@ Secondary SRAM 的 `.usb_host_data` 段。
 | E00 | 正常启动阶段或运行中 | 无需处理 |
 | E01 | `/sdcard` 尚未挂载 | 插入/检查 TF 卡，固件每秒重试 |
 | E02 | 资源文件缺失 | 屏幕显示缺失文件名，补齐后复位 |
-| E03 | LCD、保存目录或触摸初始化失败 | 检查驱动和硬件后复位 |
+| E03 | LCD、保存目录或输入初始化失败 | 检查驱动和硬件后复位 |
 | E04 | SDLPal 线程创建或启动失败 | 使用 `pal_mem` 检查片内堆 |
 | E05 | SDLPal 主循环异常退出 | 查看串口 fatal 日志和内存快照 |
 
@@ -150,19 +179,19 @@ SRAM，无需修改 upstream 源码，也不会占用线程栈或 HyperRAM。存
 从 Secondary SRAM 主堆分配；仅当约 180--192 KiB 的存档分配失败时，使用固定的
 192 KiB GFX SRAM 保留区，仍不回退到 HyperRAM。
 
-当前 GCC rotation=0 链接结果：
+当前 GCC 键盘模式 rotation=90 链接结果：
 
 | 区域 | 固定占用/容量 | 说明 |
 | --- | ---: | --- |
 | M55 DTCM | framebuffer 128 KiB | primary + backup，各 64 KiB |
-| M55 DTCM | 19,232 B headroom | `.bss` 结束到 4 KiB MSP 主栈之间 |
+| M55 DTCM | 19,536 B headroom | `.bss` 结束到 4 KiB MSP 主栈之间 |
 | Secondary SRAM | 24,720 B 静态段 | 24 KiB 游戏线程栈、线程控制块及对齐 |
 | Secondary SRAM | 15,440 B 音频静态段 | 8 KiB 音频线程栈、队列和解码状态 |
-| Secondary SRAM | 2,512 B USB 静态段 | 2 KiB 键盘 worker 栈、消息队列和控制块 |
-| Secondary SRAM | 32,920 B USB Host 状态 | CherryUSB Host 总线、Hub、HID 和 DWC2 静态对象 |
+| Secondary SRAM | 2,512 B USB 静态段 | 允许范围 2--4 KiB；含 2 KiB 键盘 worker 栈、消息队列和控制块 |
+| Secondary SRAM | 32,920 B USB Host 状态 | 允许范围 28--64 KiB；含 CherryUSB Host 总线、Hub、HID 和 DWC2 静态对象 |
 | Secondary SRAM | 1,359,712 B 主堆窗口 | SDL surface 和其他高频动态对象 |
 | GFX SRAM, 0/180 | 1,876,992 B / 3 MiB | LCD render、VG-Lite、15 KiB strip、64,000 B INDEX8 staging、593,408 B `PAL_LARGE` 和 192 KiB 保存保留区 |
-| GFX SRAM, 90/270 | 2,726,912 B / 3 MiB | 另含 819,200 B scanout buffer，剩余 418,816 B |
+| GFX SRAM, 90/270 | 2,999,296 B / 3 MiB | 另含 819,200 B scanout buffer |
 | HyperRAM | 8 MiB 显式冷堆 | 不作为主堆 fallback；当前游戏路径的 `PAL_LARGE` 对象不使用该区域 |
 
 当前 427 个 SDLPal 函数中最大静态栈帧为 `PAL_LoadDefaultGame()` 的 7,224 B，
@@ -208,8 +237,9 @@ total/used/peak/largest、GFX 固定段、VG-Lite/CPU fallback 帧计数、游�
 - [ ] 不插卡启动显示红色 E01，插卡后自动继续。
 - [ ] 临时移除 `map.mkf` 后显示红色 `E02 map.mkf`。
 - [ ] 恢复资源后进入标题并开始新游戏。
-- [ ] 调色板渐变、地图滚动、方向、A/B、PgUp/PgDn 均正确。
-- [ ] 两指方向+A 组合输入正确，无粘键。
+- [ ] 调色板渐变、地图滚动、键盘方向、Enter/A、Escape/B、PageUp/PageDown 均正确。
+- [ ] 键盘方向+动作组合输入正确，拔插后无粘键且可重新枚举。
+- [ ] 触摸配置仍支持两指方向+A 组合输入，且不启动 USB Host。
 - [ ] 保存、复位并读取存档成功。
 - [ ] 完成场景切换和至少一场战斗，连续运行至少 30 分钟。
 - [ ] 触摸响应低于 100 ms，按键 `control max_us` 低于 30 ms，游戏帧 display present 的 p95 低于 33 ms。
