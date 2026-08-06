@@ -549,6 +549,12 @@ SECTIONS
         . = ALIGN(64);
         __sdlpal_save_end__ = .;
 
+        . = ALIGN(64);
+        __sdlpal_surface_start__ = .;
+        KEEP(*(.cy_gpu_buf.sdlpal_surface))
+        . = ALIGN(64);
+        __sdlpal_surface_end__ = .;
+
         __cy_gpu_buf_end__ = .;
     } > gfx_mem
 
@@ -567,6 +573,10 @@ SECTIONS
     ASSERT(
       (__sdlpal_save_end__ - __sdlpal_save_start__) == 0x30000,
       "SDLPal save reserve must be exactly 192 KiB."
+    )
+    ASSERT(
+      (__sdlpal_surface_end__ - __sdlpal_surface_start__) == 0x20000,
+      "SDLPal surface GFX pool must be exactly 128 KiB."
     )
 
     .reserved_socmem(NOLOAD) :

@@ -3,7 +3,7 @@
 #include <ctype.h>
 
 #if defined(PAL_PSOC_DIRECT_INDEXED)
-#include "pal_memory.h"
+#include "pal_surface_storage.h"
 #endif
 
 #ifndef SHIM_MAX_SURFACES
@@ -53,6 +53,9 @@ typedef struct ShimSurfaceSlot {
     size_t pixel_bytes;
     SDL_Surface surface;
     SDL_PixelFormat format;
+#if defined(PAL_PSOC_DIRECT_INDEXED)
+    pal_surface_storage_kind_t storage_kind;
+#endif
 #if !defined(PAL_SDL_SHIM_EXTERNAL_SURFACES_ONLY)
     Uint8 pixels[SHIM_SURFACE_PIXELS];
 #endif
@@ -143,6 +146,9 @@ static SDL_Surface *create_surface_common(Uint32 flags, int width, int height, i
     int i;
     size_t bytes;
     int owns_pixels;
+#if defined(PAL_PSOC_DIRECT_INDEXED)
+    pal_surface_storage_kind_t storage_kind = PAL_SURFACE_STORAGE_HOT;
+#endif
     if (width <= 0 || height <= 0 || depth <= 0) {
         return NULL;
     }
@@ -164,7 +170,8 @@ static SDL_Surface *create_surface_common(Uint32 flags, int width, int height, i
         if (pixels == NULL) {
 #if defined(PAL_SDL_SHIM_DYNAMIC_SURFACES)
 #if defined(PAL_PSOC_DIRECT_INDEXED)
-            pixels = pal_hot_alloc(bytes, PAL_MEMORY_TAG_SURFACE);
+            pixels = pal_surface_alloc(bytes, PAL_MEMORY_TAG_SURFACE,
+                                       &storage_kind);
 #else
             pixels = malloc(bytes);
 #endif
@@ -184,6 +191,9 @@ static SDL_Surface *create_surface_common(Uint32 flags, int width, int height, i
         slot->used = 1;
         slot->owns_pixels = owns_pixels;
         slot->pixel_bytes = owns_pixels ? bytes : 0u;
+#if defined(PAL_PSOC_DIRECT_INDEXED)
+        slot->storage_kind = storage_kind;
+#endif
         init_format(&slot->format, depth, rmask, gmask, bmask, amask);
         slot->surface.flags = flags | (!owns_pixels ? SDL_PREALLOC : 0);
         slot->surface.format = &slot->format;
@@ -602,8 +612,8 @@ void SDL_FreeSurface(SDL_Surface *surface)
     defined(PAL_SDL_SHIM_DYNAMIC_SURFACES)
         if (slot->owns_pixels) {
 #if defined(PAL_PSOC_DIRECT_INDEXED)
-            pal_hot_free(slot->surface.pixels, slot->pixel_bytes,
-                         PAL_MEMORY_TAG_SURFACE);
+            pal_surface_free(slot->surface.pixels, slot->pixel_bytes,
+                             PAL_MEMORY_TAG_SURFACE, slot->storage_kind);
 #else
             free(slot->surface.pixels);
 #endif

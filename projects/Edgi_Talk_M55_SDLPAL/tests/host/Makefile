@@ -11,14 +11,15 @@ TOUCH_FAKE_INCLUDES := -Ifakes_touch
 DISPLAY_FAKE_INCLUDES := -Ifakes_display
 
 .PHONY: all test_display_core test_display_port test_touch_core test_port_headers test_storage \
-	test_sdl_shim test_libc_compat test_engine_bridge test_boot_state \
+	test_sdl_shim test_sdl_shim_surface_fallback test_libc_compat test_engine_bridge test_boot_state \
 	test_memory_policy test_save_io_core test_touch_driver \
 	test_touch_poll_cache clean
 
 all: test_display_core test_display_port test_touch_core test_port_headers test_storage \
 	test_sdl_shim test_libc_compat test_engine_bridge test_boot_state \
 	test_memory_policy test_save_io_core test_touch_driver \
-	test_touch_poll_cache
+	test_touch_poll_cache test_surface_storage \
+	test_sdl_shim_surface_fallback
 
 test_display_core: test_display_core.exe
 	.\test_display_core.exe
@@ -81,7 +82,25 @@ test_sdl_shim.exe: test_sdl_shim.c $(SDL_SHIM)/sdl_shim.c \
 		-DPAL_ENGINE_BRIDGE_REQUIRE_TARGET_HOOKS=0 \
 		-DPAL_SDL_SHIM_EXTERNAL_SURFACES_ONLY=1 \
 		-DPAL_SDL_SHIM_DYNAMIC_SURFACES=1 \
-		test_sdl_shim.c $(SDL_SHIM)/sdl_shim.c -o $@
+	test_sdl_shim.c $(SDL_SHIM)/sdl_shim.c -o $@
+
+test_sdl_shim_surface_fallback: test_sdl_shim_surface_fallback.exe
+	.\test_sdl_shim_surface_fallback.exe
+
+test_sdl_shim_surface_fallback.exe: test_sdl_shim_surface_fallback.c \
+		$(SDL_SHIM)/sdl_shim.c $(SDL_SHIM)/include/SDL.h \
+		$(PLATFORM)/pal_surface_storage.c \
+		$(PLATFORM)/pal_surface_storage.h \
+		$(PLATFORM)/pal_memory_policy.c \
+		$(PLATFORM)/pal_memory_policy.h
+	$(HOST_CC) $(CFLAGS) $(INCLUDES) $(SDL_INCLUDES) \
+		-DPAL_ENGINE_BRIDGE_REQUIRE_TARGET_HOOKS=0 \
+		-DPAL_SDL_SHIM_EXTERNAL_SURFACES_ONLY=1 \
+		-DPAL_SDL_SHIM_DYNAMIC_SURFACES=1 \
+		-DPAL_PSOC_DIRECT_INDEXED=1 \
+		test_sdl_shim_surface_fallback.c $(SDL_SHIM)/sdl_shim.c \
+		$(PLATFORM)/pal_surface_storage.c \
+		$(PLATFORM)/pal_memory_policy.c -o $@
 
 test_libc_compat: test_libc_compat.exe
 	.\test_libc_compat.exe
@@ -113,6 +132,18 @@ test_memory_policy: test_memory_policy.exe
 test_memory_policy.exe: test_memory_policy.c \
 		$(PLATFORM)/pal_memory_policy.c $(PLATFORM)/pal_memory_policy.h
 	$(HOST_CC) $(CFLAGS) $(INCLUDES) test_memory_policy.c \
+		$(PLATFORM)/pal_memory_policy.c -o $@
+
+test_surface_storage: test_surface_storage.exe
+	.\test_surface_storage.exe
+
+test_surface_storage.exe: test_surface_storage.c \
+		$(PLATFORM)/pal_surface_storage.c \
+		$(PLATFORM)/pal_surface_storage.h \
+		$(PLATFORM)/pal_memory_policy.c \
+		$(PLATFORM)/pal_memory_policy.h
+	$(HOST_CC) $(CFLAGS) $(INCLUDES) test_surface_storage.c \
+		$(PLATFORM)/pal_surface_storage.c \
 		$(PLATFORM)/pal_memory_policy.c -o $@
 
 test_save_io_core: test_save_io_core.exe

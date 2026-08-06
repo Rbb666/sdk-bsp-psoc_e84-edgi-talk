@@ -308,6 +308,29 @@ class ProjectContractTest(unittest.TestCase):
         self.assertIn("KEEP(*(.cy_gpu_buf.sdlpal_large))", linker)
         self.assertIn("__sdlpal_large_end__", linker)
 
+    def test_surface_storage_has_a_fixed_gfx_fallback_pool(self):
+        storage_header = ROOT / "platform" / "pal_surface_storage.h"
+        storage_source = ROOT / "platform" / "pal_surface_storage.c"
+        linker = (ROOT / "board" / "linker_scripts" / "link.ld").read_text(
+            encoding="utf-8"
+        )
+        platform_build = (ROOT / "platform" / "SConscript").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertTrue(storage_header.is_file())
+        self.assertTrue(storage_source.is_file())
+        self.assertIn("PAL_SURFACE_STORAGE_GFX", storage_source.read_text(
+            encoding="utf-8"
+        ))
+        self.assertIn('section(".cy_gpu_buf.sdlpal_surface")', storage_source.read_text(
+            encoding="utf-8"
+        ))
+        self.assertIn("__sdlpal_surface_start__", linker)
+        self.assertIn("__sdlpal_surface_end__", linker)
+        self.assertIn("0x20000", linker)
+        self.assertIn("Glob('*.c')", platform_build)
+
     def test_save_path_is_platform_owned_and_bounded(self):
         hook_header = ROOT / "platform" / "pal_engine_io_hooks.h"
         adapter_source = ROOT / "platform" / "pal_engine_io.c"

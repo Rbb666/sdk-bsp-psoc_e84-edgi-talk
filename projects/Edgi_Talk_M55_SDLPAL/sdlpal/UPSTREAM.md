@@ -18,7 +18,9 @@ Local changes to the snapshot are intentionally small:
 1. `sdl_shim.c` omits unused static texture storage and supports target-owned
    dynamic surfaces without restoring the upstream multi-megabyte static pixel
    pools. Main and backup screens remain external fixed buffers; temporary UI
-   and battle surfaces use the on-chip RT-Thread heap and are freed normally.
+   and battle surfaces prefer the on-chip RT-Thread heap, then use the fixed
+   GFX SRAM surface pool and HyperRAM fallback when SRAM is fragmented, and are
+   freed through the allocator that supplied their pixels.
 2. The shim declares two SDL2 texture helpers used only by the disabled touch
    overlay path; no renderer texture pool is allocated for this target.
 3. PSoC-only engine changes are guarded by `PAL_PSOC_DIRECT_INDEXED`, including
