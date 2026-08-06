@@ -12,12 +12,12 @@ DISPLAY_FAKE_INCLUDES := -Ifakes_display
 
 .PHONY: all test_display_core test_display_port test_touch_core test_port_headers test_storage \
 	test_sdl_shim test_sdl_shim_surface_fallback test_libc_compat test_engine_bridge test_boot_state \
-	test_memory_policy test_save_io_core test_touch_driver \
+	test_memory_policy test_engine_heap test_save_io_core test_touch_driver \
 	test_touch_poll_cache clean
 
 all: test_display_core test_display_port test_touch_core test_port_headers test_storage \
 	test_sdl_shim test_libc_compat test_engine_bridge test_boot_state \
-	test_memory_policy test_save_io_core test_touch_driver \
+	test_memory_policy test_engine_heap test_save_io_core test_touch_driver \
 	test_touch_poll_cache test_surface_storage \
 	test_sdl_shim_surface_fallback
 
@@ -132,6 +132,16 @@ test_memory_policy: test_memory_policy.exe
 test_memory_policy.exe: test_memory_policy.c \
 		$(PLATFORM)/pal_memory_policy.c $(PLATFORM)/pal_memory_policy.h
 	$(HOST_CC) $(CFLAGS) $(INCLUDES) test_memory_policy.c \
+		$(PLATFORM)/pal_memory_policy.c -o $@
+
+test_engine_heap: test_engine_heap.exe
+	.\test_engine_heap.exe
+
+test_engine_heap.exe: test_engine_heap.c \
+		$(PLATFORM)/pal_engine_heap.c $(PLATFORM)/pal_engine_heap.h \
+		$(PLATFORM)/pal_memory_policy.c $(PLATFORM)/pal_memory_policy.h
+	$(HOST_CC) $(CFLAGS) $(INCLUDES) test_engine_heap.c \
+		$(PLATFORM)/pal_engine_heap.c \
 		$(PLATFORM)/pal_memory_policy.c -o $@
 
 test_surface_storage: test_surface_storage.exe
