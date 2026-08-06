@@ -1,5 +1,6 @@
 #include "pal_rix_music.h"
 
+#include "pal_audio_resampler.h"
 #include "pal_mame_opl2_static.h"
 #include "third_party/adplug/rix.h"
 
@@ -10,6 +11,7 @@ namespace
 
 constexpr uint32_t kRixTickRate = 70u;
 constexpr size_t kOplTickSamples = 315u;
+constexpr uint32_t kOplRate = 22050u;
 constexpr uint32_t kOutputRate = 16000u;
 constexpr size_t kMaximumOutputTickSamples = 229u;
 constexpr uint32_t kFadePhaseOne = UINT32_C(1) << 31;
@@ -65,7 +67,6 @@ struct MusicState
     const uint8_t *pending_data;
     size_t pending_size;
     uint32_t output_rate;
-    uint32_t tick_phase;
     uint32_t pending_fade_in;
     uint32_t fade_remaining;
     uint32_t fade_step_base;
@@ -82,6 +83,7 @@ struct MusicState
     bool enabled;
     FadeState fade;
     pal_rix_music_metrics_t metrics;
+    pal_audio_resampler_t resampler;
     int16_t opl_tick[kOplTickSamples];
     int16_t output_tick[kMaximumOutputTickSamples];
 };
@@ -275,37 +277,20 @@ static bool render_opl_tick()
 
 static bool prepare_output_tick()
 {
-    uint16_t frames;
-    uint64_t position = 0u;
-    uint64_t step;
-    size_t i;
+    size_t frames;
 
     if (!render_opl_tick())
     {
         return false;
     }
-    frames = pal_rix_music_next_tick_frames(&state.tick_phase,
-                                             state.output_rate);
+    frames = pal_audio_resampler_process_tick(
+        &state.resampler, state.opl_tick, kOplTickSamples,
+        state.output_tick, kMaximumOutputTickSamples);
     if (frames == 0u || frames > kMaximumOutputTickSamples)
     {
         ++state.metrics.failed_tracks;
         stop_now();
         return false;
-    }
-    step = (static_cast<uint64_t>(kOplTickSamples - 1u) << 32) /
-           (frames - 1u);
-    for (i = 0u; i < frames; ++i)
-    {
-        size_t source = static_cast<size_t>(position >> 32);
-        uint32_t fraction = static_cast<uint32_t>(position);
-        int32_t first = state.opl_tick[source];
-        int32_t second = state.opl_tick[
-            source + 1u < kOplTickSamples ? source + 1u : source];
-        int64_t delta = static_cast<int64_t>(second - first) * fraction;
-
-        state.output_tick[i] = static_cast<int16_t>(
-            first + static_cast<int32_t>(delta / (UINT64_C(1) << 32)));
-        position += step;
     }
     state.output_tick_count = frames;
     state.output_tick_index = 0u;
@@ -350,6 +335,8 @@ pal_rix_music_init(uint32_t output_rate)
     state.volume_q15 = PAL_RIX_MUSIC_GAIN_ONE;
     state.enabled = true;
     state.fade_phase_q31 = kFadePhaseOne;
+    pal_audio_resampler_init(&state.resampler, kOplRate,
+                             state.output_rate, kRixTickRate);
     PalMameOpl2_Init();
 }
 

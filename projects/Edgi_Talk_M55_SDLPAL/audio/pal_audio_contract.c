@@ -21,7 +21,15 @@
 #define PAL_AUDIO_OUTPUT_BITS 16u
 #define PAL_AUDIO_OUTPUT_SAMPLES 256u
 #define PAL_AUDIO_RELEASE_CAPACITY 32u
+#define PAL_AUDIO_MUSIC_HANDLE_OWNERS 3u
+/* Sound queue + active voices + queued/current/pending music. */
+#define PAL_AUDIO_MAX_LIVE_HANDLES                                      \
+    (PAL_AUDIO_SOUND_QUEUE_CAPACITY + PAL_AUDIO_MIXER_MAX_VOICES +       \
+     PAL_AUDIO_MUSIC_HANDLE_OWNERS)
 #define PAL_AUDIO_STOP_TIMEOUT_MS 250u
+
+typedef char pal_audio_release_capacity_covers_all_owners[
+    PAL_AUDIO_RELEASE_CAPACITY >= PAL_AUDIO_MAX_LIVE_HANDLES ? 1 : -1];
 
 #if defined(__GNUC__)
 #define PAL_AUDIO_SRAM __attribute__((section(".sdlpal_audio"), aligned(8)))
@@ -94,6 +102,7 @@ static void defer_release(pal_audio_cache_handle_t *handle)
     {
         ++audio_state.release_overflows;
         rt_hw_interrupt_enable(level);
+        RT_ASSERT(audio_state.release_count < PAL_AUDIO_RELEASE_CAPACITY);
         return;
     }
     audio_state.releases[audio_state.release_tail] = *handle;

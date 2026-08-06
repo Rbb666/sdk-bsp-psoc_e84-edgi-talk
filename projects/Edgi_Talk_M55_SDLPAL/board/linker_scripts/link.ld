@@ -299,6 +299,9 @@ SECTIONS
         LONG(__bss_start__)                       /* Start of the zero-initialized data section */
         LONG((__bss_end__ - __bss_start__)/4)     /* Size of the zero-initialized data section in words */
 
+        LONG(__sdlpal_audio_start__)               /* Static SDLPal audio state in Secondary SRAM */
+        LONG((__sdlpal_audio_end__ - __sdlpal_audio_start__)/4)
+
         __zero_table_end__ = .;
     } > m55_nvm_sel
 

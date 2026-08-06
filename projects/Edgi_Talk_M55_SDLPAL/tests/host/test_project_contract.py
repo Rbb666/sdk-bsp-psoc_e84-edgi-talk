@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 import unittest
 
 
@@ -328,6 +329,16 @@ class ProjectContractTest(unittest.TestCase):
         self.assertIn("__sdlpal_audio_start__", linker)
         self.assertIn("__sdlpal_audio_end__", linker)
         self.assertIn("SIZEOF(.sdlpal_audio) <= 0xc000", linker)
+        zero_table = re.search(
+            r"\.zero\.table\s*:[\s\S]*?__zero_table_end__\s*=\s*\.;",
+            linker,
+        )
+        self.assertIsNotNone(zero_table)
+        self.assertIn("LONG(__sdlpal_audio_start__)", zero_table.group(0))
+        self.assertIn(
+            "LONG((__sdlpal_audio_end__ - __sdlpal_audio_start__)/4)",
+            zero_table.group(0),
+        )
         self.assertRegex(
             linker,
             r"\.sdlpal_audio\s*\(NOLOAD\)[\s\S]*?}\s*>\s*m55_data_secondary",
@@ -415,9 +426,31 @@ class ProjectContractTest(unittest.TestCase):
         self.assertIn("PAL_AUDIO_MAX_BYTES = 48 * 1024", elf_check)
         self.assertIn("#if defined(BSP_USING_SDLPAL)", i2s_source)
         self.assertIn("sdlpal_i2s_underruns", i2s_source)
+        self.assertIn("sdlpal_reset_playback_state", i2s_source)
+        self.assertIn("rt_mq_control(snd_dev->tx_mq", i2s_source)
+        self.assertIn("rt_sem_control(snd_dev->tx_sem", i2s_source)
+        self.assertIn("rt_data_queue_reset(&audio->replay->queue)", i2s_source)
+        self.assertIn("if (tx_buff == RT_NULL)", i2s_source)
+        self.assertLess(
+            i2s_source.index("if (tx_buff == RT_NULL)"),
+            i2s_source.index("rt_memset(tx_buff, 0, TX_FIFO_SIZE)"),
+        )
         for text in ("mus.mkf", "voc.mkf", "sound0", "pal_audio", "10"):
             self.assertIn(text, readme)
         self.assertIn("audio/third_party", upstream)
+
+        contract = (ROOT / "audio" / "pal_audio_contract.c").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("PAL_AUDIO_MAX_LIVE_HANDLES", contract)
+        self.assertIn(
+            "pal_audio_release_capacity_covers_all_owners", contract
+        )
+        self.assertIn(
+            "RT_ASSERT(audio_state.release_count < "
+            "PAL_AUDIO_RELEASE_CAPACITY)",
+            contract,
+        )
 
     def test_indexed_framebuffers_are_fixed_in_dtcm(self):
         memory_header = (ROOT / "platform" / "pal_memory.h").read_text(

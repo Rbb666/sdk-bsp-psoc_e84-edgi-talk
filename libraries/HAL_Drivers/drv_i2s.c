@@ -432,12 +432,49 @@ static rt_err_t sound_init(struct rt_audio_device *audio)
     return result;
 }
 
+#if defined(BSP_USING_SDLPAL)
+static void sdlpal_reset_playback_state(struct sound_device *snd_dev,
+                                        bool stop_hardware)
+{
+    if (stop_hardware)
+    {
+        Cy_AudioTDM_SetTxInterruptMask(TDM_STRUCT0_TX, 0u);
+        app_i2s_deactivate();
+        Cy_AudioI2S_DisableTx(TDM_STRUCT0_TX);
+        Cy_AudioTDM_ClearTxInterrupt(TDM_STRUCT0_TX, CY_TDM_INTR_TX_MASK);
+    }
+    (void)rt_mq_control(snd_dev->tx_mq, RT_IPC_CMD_RESET, RT_NULL);
+    (void)rt_sem_control(snd_dev->tx_sem, RT_IPC_CMD_RESET, RT_NULL);
+    rt_memset(i2s_stereo_playback_buffer1, 0,
+              sizeof(i2s_stereo_playback_buffer1));
+    rt_memset(i2s_stereo_playback_buffer2, 0,
+              sizeof(i2s_stereo_playback_buffer2));
+    active_i2s_playback_buffer_ptr = i2s_stereo_playback_buffer1;
+    inactive_i2s_playback_buffer_ptr = i2s_stereo_playback_buffer2;
+    i2s_playback_ptr = i2s_stereo_zero_buffer;
+    aec_ref_cb_ptr = RT_NULL;
+    i2s_data_ready_flag = false;
+    i2s_deinit_flag = false;
+    i2s_skip_frame = false;
+    first_frame = true;
+    i2s_32_samples_frame_count = 0u;
+    music_player_pause = false;
+}
+#endif
+
 static rt_err_t sound_start(struct rt_audio_device *audio, int stream)
 {
     RT_ASSERT(audio != RT_NULL);
 
     if (stream == AUDIO_STREAM_REPLAY)
     {
+#if defined(BSP_USING_SDLPAL)
+        struct sound_device *snd_dev =
+            (struct sound_device *)audio->parent.user_data;
+
+        sdlpal_reset_playback_state(snd_dev, false);
+        sdlpal_i2s_underruns = 0u;
+#endif
         music_player_active = true;
         LOG_I("Ready for I2S output \r\n");
         rt_audio_tx_complete(audio);
@@ -466,6 +503,17 @@ static rt_err_t sound_stop(struct rt_audio_device *audio, int stream)
     RT_ASSERT(audio != RT_NULL);
     if (stream == AUDIO_STREAM_REPLAY)
     {
+#if defined(BSP_USING_SDLPAL)
+        struct sound_device *snd_dev =
+            (struct sound_device *)audio->parent.user_data;
+
+        music_player_active = false;
+        sdlpal_reset_playback_state(snd_dev, true);
+        rt_data_queue_reset(&audio->replay->queue);
+        audio->replay->write_index = 0u;
+        audio->replay->read_index = 0u;
+        audio->replay->pos = 0u;
+#else
 //        music_player_active = false;
 //        first_frame=true;
 //        app_i2s_deactivate();
@@ -478,6 +526,7 @@ static rt_err_t sound_stop(struct rt_audio_device *audio, int stream)
 //        i2s_data_ready_flag = false;
 
 //            rt_audio_tx_complete(audio);
+#endif
         LOG_D("Sound Stop.");
     }
 
@@ -523,9 +572,15 @@ int rt_hw_sound_init(void)
 
     tx_buff = (rt_uint8_t *)rt_malloc(TX_FIFO_SIZE);
 
+#if defined(BSP_USING_SDLPAL)
+    if (tx_buff == RT_NULL)
+        return -RT_ENOMEM;
+    rt_memset(tx_buff, 0, TX_FIFO_SIZE);
+#else
     rt_memset(tx_buff, 0, TX_FIFO_SIZE);
     if (tx_buff == RT_NULL)
         return -RT_ENOMEM;
+#endif
     snd_dev.tx_buff = tx_buff;
     /* init default configuration */
     snd_dev.audio_config.samplerate = 16000;
@@ -540,11 +595,26 @@ int rt_hw_sound_init(void)
                         sizeof(i2s_playback_q_data_t),
                         sizeof(msg_pool),
                         RT_IPC_FLAG_FIFO);
+#if defined(BSP_USING_SDLPAL)
+    if (snd_dev.tx_mq == RT_NULL)
+    {
+        LOG_E("create sound tx_mq failed.\n");
+        rt_free(snd_dev.tx_buff);
+        snd_dev.tx_buff = RT_NULL;
+        return -RT_ERROR;
+    }
+#endif
 
     snd_dev.tx_sem = rt_sem_create("sound_tx_sem", 0, RT_IPC_FLAG_FIFO);
     if (snd_dev.tx_sem == RT_NULL)
     {
         LOG_E("create sound tx_sem failed.\n");
+#if defined(BSP_USING_SDLPAL)
+        rt_mq_delete(snd_dev.tx_mq);
+        rt_free(snd_dev.tx_buff);
+        snd_dev.tx_mq = RT_NULL;
+        snd_dev.tx_buff = RT_NULL;
+#endif
         return -RT_ERROR;
     }
 
@@ -553,7 +623,17 @@ int rt_hw_sound_init(void)
     if (snd_dev.playback_thread == RT_NULL)
     {
         LOG_E("Error in I2S playback task \r\n");
+#if defined(BSP_USING_SDLPAL)
+        rt_sem_delete(snd_dev.tx_sem);
+        rt_mq_delete(snd_dev.tx_mq);
+        rt_free(snd_dev.tx_buff);
+        snd_dev.tx_sem = RT_NULL;
+        snd_dev.tx_mq = RT_NULL;
+        snd_dev.tx_buff = RT_NULL;
+        return -RT_ERROR;
+#else
         RT_ASSERT(snd_dev.playback_thread != RT_NULL);
+#endif
     }
 
     ret = rt_audio_register(&snd_dev.audio, "sound0", RT_DEVICE_FLAG_WRONLY, &snd_dev);
@@ -561,6 +641,16 @@ int rt_hw_sound_init(void)
     if (ret != RT_EOK)
     {
         LOG_E("rt_audio %s register failed, status=%d\n", "sound0", ret);
+#if defined(BSP_USING_SDLPAL)
+        rt_thread_delete(snd_dev.playback_thread);
+        rt_sem_delete(snd_dev.tx_sem);
+        rt_mq_delete(snd_dev.tx_mq);
+        rt_free(snd_dev.tx_buff);
+        snd_dev.playback_thread = RT_NULL;
+        snd_dev.tx_sem = RT_NULL;
+        snd_dev.tx_mq = RT_NULL;
+        snd_dev.tx_buff = RT_NULL;
+#endif
         return -RT_ERROR;
     }
 
@@ -612,7 +702,16 @@ void i2s_playback_task(void *arg)
 
     while (1)
     {
+#if defined(BSP_USING_SDLPAL)
+        if (rt_mq_recv(snd_dev->tx_mq, &i2s_playback_q_data,
+                       sizeof(i2s_playback_q_data_t),
+                       RT_WAITING_FOREVER) != RT_EOK)
+        {
+            continue;
+        }
+#else
         rt_mq_recv(snd_dev->tx_mq, &i2s_playback_q_data, sizeof(i2s_playback_q_data_t), RT_WAITING_FOREVER);
+#endif
 
         /* Clear the flags, queues and notifications in case of I2S de-init.
          * This occurs when the "Stop Music" command is given.

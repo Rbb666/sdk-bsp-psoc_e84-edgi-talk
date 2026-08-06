@@ -19,14 +19,14 @@ AUDIO_INCLUDES := -I../../audio -I../../audio/third_party \
 	test_sdl_shim test_sdl_shim_surface_fallback test_libc_compat test_engine_bridge test_boot_state \
 	test_memory_policy test_engine_heap test_save_io_core test_touch_driver \
 	test_touch_poll_cache test_audio_cache test_voc_mixer test_audio_queue \
-	test_audio_resources test_rix_output clean
+	test_audio_resources test_audio_resampler test_rix_output clean
 
 all: test_display_core test_display_port test_touch_core test_port_headers test_storage \
 	test_sdl_shim test_libc_compat test_engine_bridge test_boot_state \
 	test_memory_policy test_engine_heap test_save_io_core test_touch_driver \
 	test_touch_poll_cache test_surface_storage \
 	test_sdl_shim_surface_fallback test_audio_cache test_voc_mixer \
-	test_audio_queue test_audio_resources test_rix_output
+	test_audio_queue test_audio_resources test_audio_resampler test_rix_output
 
 test_display_core: test_display_core.exe
 	.\test_display_core.exe
@@ -177,6 +177,14 @@ test_audio_queue.exe: test_audio_queue.c ../../audio/pal_audio_queue.c \
 	$(HOST_CC) $(CFLAGS) -I../../audio test_audio_queue.c \
 		../../audio/pal_audio_queue.c ../../audio/pal_audio_runtime.c -o $@
 
+test_audio_resampler: test_audio_resampler.exe
+	.\test_audio_resampler.exe
+
+test_audio_resampler.exe: test_audio_resampler.c \
+		../../audio/pal_audio_resampler.c ../../audio/pal_audio_resampler.h
+	$(HOST_CC) $(CFLAGS) -I../../audio test_audio_resampler.c \
+		../../audio/pal_audio_resampler.c -o $@
+
 test_rix_output: test_rix_output.exe
 	.\test_rix_output.exe
 
@@ -184,7 +192,8 @@ test_rix_output.exe: test_rix_output.cpp \
 		../../audio/third_party/adplug/player.cpp \
 		../../audio/third_party/adplug/rix.cpp \
 		../../audio/pal_mame_opl2_static.cpp \
-		../../audio/pal_mame_opl2_static.h ../../audio/pal_rix_music.cpp \
+		../../audio/pal_mame_opl2_static.h ../../audio/pal_audio_resampler.c \
+		../../audio/pal_audio_resampler.h ../../audio/pal_rix_music.cpp \
 		../../audio/pal_rix_music.h
 	g++ -std=c++17 -Wall -Wextra -Werror -pedantic \
 		-Wno-unused-parameter -Wno-ignored-qualifiers $(AUDIO_INCLUDES) \
@@ -192,6 +201,7 @@ test_rix_output.exe: test_rix_output.cpp \
 		test_rix_output.cpp ../../audio/third_party/adplug/player.cpp \
 		../../audio/third_party/adplug/rix.cpp \
 		../../audio/pal_mame_opl2_static.cpp \
+		../../audio/pal_audio_resampler.c \
 		../../audio/pal_rix_music.cpp -o $@
 
 test_engine_heap: test_engine_heap.exe
