@@ -182,4 +182,34 @@ total/used/peak/largest、GFX 固定段、VG-Lite/CPU fallback 帧计数、游�
 - [ ] 触摸响应低于 100 ms，按键 `control max_us` 低于 30 ms，游戏帧 display present 的 p95 低于 33 ms。
 - [ ] 片内堆、HyperRAM 和线程栈峰值稳定，无单调增长；`cold current=0`，`sdlpal stack used_peak < 18432 total=24576`。
 
+## DOS audio
+
+DOS audio is implemented by the project-private `audio/` group. Place
+`mus.mkf` and `voc.mkf` next to the other game resources under
+`/sdcard/pal`. Either audio archive may be absent; the game still boots and
+only the missing music or sound-effect path is disabled.
+
+The port opens RT-Thread device `sound0` as 16 kHz, signed PCM16, mono input.
+It renders 256 samples (512 bytes) per block. RIX music uses the fixed-memory
+OPL2 core at 22.05 kHz and is converted to 16 kHz; DOS VOC effects use at most
+four simultaneous voices. Mutable decoder, mixer and the 8 KiB audio thread
+stack stay in the `.sdlpal_audio` Secondary SRAM section. Raw MKF chunks use a
+bounded 1 MiB HyperRAM LRU cache.
+
+Use the following FinSH command while validating audio:
+
+```text
+msh /> pal_audio
+```
+
+The report includes rendered/written blocks, real I2S underruns, render/write
+maximum time, voice peak, queue drops, cache current/peak usage, RIX failures,
+and audio stack high-water usage. For board acceptance, play title and battle
+music, trigger overlapping movement/menu/battle effects, change volume, pause
+and resume music, then run for at least 10 minutes. Expected steady-state
+results are `underruns=0`, `sound_drops=0`, `release_overflows=0`, no monotonic
+cache growth, and audio stack usage below 8192 bytes. Also repeat save/load,
+battle entry, touch controls and display scrolling to check that audio does not
+regress the existing workflows.
+
 SDLPal 上游版本和本地差异见 `sdlpal/UPSTREAM.md`。

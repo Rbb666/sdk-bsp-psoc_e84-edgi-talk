@@ -50,3 +50,8 @@ Local changes to the snapshot are intentionally small:
    on-chip SRAM heap, then a fixed 128 KiB GFX resource pool, and use HyperRAM
    only as the final fallback. The allocation changes remain in platform hooks
    and the platform-specific shim; upstream battle and fight code is unchanged.
+7. DOS audio is supplied by the project-private `audio/` group. It implements
+   the upstream `AUDIO_*` ABI, MKF caching, VOC mixing and the RT-Thread
+   `sound0` port without editing any file below `sdlpal/upstream`. Mutable audio
+   state is linked into `.sdlpal_audio` Secondary SRAM, while `mus.mkf` and
+   `voc.mkf` chunks use the bounded HyperRAM cache.

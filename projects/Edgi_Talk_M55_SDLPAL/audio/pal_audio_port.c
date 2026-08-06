@@ -6,6 +6,10 @@
 
 #include <string.h>
 
+#if defined(BSP_USING_SDLPAL)
+extern uint32_t drv_i2s_sdlpal_underruns(void);
+#endif
+
 #define PAL_AUDIO_SAMPLE_RATE 16000u
 #define PAL_AUDIO_SAMPLE_BITS 16u
 #define PAL_AUDIO_CHANNELS 1u
@@ -38,6 +42,19 @@ static rt_uint8_t audio_stack[PAL_AUDIO_STACK_BYTES] PAL_AUDIO_SRAM;
 static int16_t audio_block[PAL_AUDIO_BLOCK_SAMPLES] PAL_AUDIO_SRAM;
 static pal_audio_port_state_t audio_state PAL_AUDIO_SRAM;
 
+static void update_elapsed(uint32_t start_ms, uint32_t *last_us,
+                           uint32_t *max_us)
+{
+    uint32_t elapsed_us =
+        (uint32_t)(rt_tick_get_millisecond() - start_ms) * 1000u;
+
+    *last_us = elapsed_us;
+    if (elapsed_us > *max_us)
+    {
+        *max_us = elapsed_us;
+    }
+}
+
 static int audio_configure(rt_device_t device)
 {
     struct rt_audio_caps caps;
@@ -61,25 +78,33 @@ static void audio_thread_entry(void *parameter)
 
     while (!audio_state.stop_requested)
     {
+        uint32_t started = rt_tick_get_millisecond();
+
         audio_state.render(audio_state.render_context, audio_block,
                            PAL_AUDIO_BLOCK_SAMPLES);
+        update_elapsed(started, &audio_state.metrics.render_last_us,
+                       &audio_state.metrics.render_max_us);
         audio_state.metrics.rendered_blocks++;
+        started = rt_tick_get_millisecond();
         written = rt_device_write(audio_state.device, 0, audio_block,
                                   PAL_AUDIO_BLOCK_BYTES);
         if (written == (rt_ssize_t)PAL_AUDIO_BLOCK_BYTES)
         {
             audio_state.metrics.written_blocks++;
-            continue;
         }
-
-        audio_state.metrics.short_writes++;
-        rt_memset(audio_block, 0, sizeof(audio_block));
-        written = rt_device_write(audio_state.device, 0, audio_block,
-                                  PAL_AUDIO_BLOCK_BYTES);
-        if (written == (rt_ssize_t)PAL_AUDIO_BLOCK_BYTES)
+        else
         {
-            audio_state.metrics.silence_recoveries++;
+            audio_state.metrics.short_writes++;
+            rt_memset(audio_block, 0, sizeof(audio_block));
+            written = rt_device_write(audio_state.device, 0, audio_block,
+                                      PAL_AUDIO_BLOCK_BYTES);
+            if (written == (rt_ssize_t)PAL_AUDIO_BLOCK_BYTES)
+            {
+                audio_state.metrics.silence_recoveries++;
+            }
         }
+        update_elapsed(started, &audio_state.metrics.write_last_us,
+                       &audio_state.metrics.write_max_us);
     }
 
     (void)rt_device_close(audio_state.device);
@@ -176,6 +201,23 @@ void pal_audio_port_metrics_get(pal_audio_port_metrics_t *metrics)
 {
     if (metrics != NULL)
     {
+        rt_base_t level = rt_hw_interrupt_disable();
+        size_t untouched = 0u;
+
         *metrics = audio_state.metrics;
+        while (audio_state.render != NULL &&
+               untouched < sizeof(audio_stack) &&
+               audio_stack[untouched] == '#')
+        {
+            ++untouched;
+        }
+        metrics->audio_stack_total_bytes = sizeof(audio_stack);
+        metrics->audio_stack_used_bytes = audio_state.render != NULL
+                                              ? sizeof(audio_stack) - untouched
+                                              : 0u;
+        rt_hw_interrupt_enable(level);
+#if defined(BSP_USING_SDLPAL)
+        metrics->hardware_underruns = drv_i2s_sdlpal_underruns();
+#endif
     }
 }

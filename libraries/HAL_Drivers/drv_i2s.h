@@ -164,6 +164,10 @@ void app_i2s_enable(void);
 void app_i2s_activate(void);
 void app_i2s_deactivate(void);
 
+#if defined(BSP_USING_SDLPAL)
+uint32_t drv_i2s_sdlpal_underruns(void);
+#endif
+
 
 #ifdef __cplusplus
 }

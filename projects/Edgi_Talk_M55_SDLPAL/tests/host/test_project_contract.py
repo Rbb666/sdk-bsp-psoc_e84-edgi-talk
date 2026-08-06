@@ -376,6 +376,49 @@ class ProjectContractTest(unittest.TestCase):
         self.assertNotIn("SOUND_Init(", backend)
         self.assertNotIn("unix/contract_noaudio.c", engine_build)
 
+    def test_audio_diagnostics_and_documentation_contract(self):
+        diagnostics_path = ROOT / "audio" / "pal_audio_diagnostics.c"
+        diagnostics_header_path = ROOT / "audio" / "pal_audio_diagnostics.h"
+        memory = (ROOT / "platform" / "pal_memory.c").read_text(
+            encoding="utf-8"
+        )
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        upstream = (ROOT / "sdlpal" / "UPSTREAM.md").read_text(
+            encoding="utf-8"
+        )
+        elf_check = (ROOT / "tools" / "check_elf.py").read_text(
+            encoding="utf-8"
+        )
+        i2s_source = (
+            BSP_ROOT / "libraries" / "HAL_Drivers" / "drv_i2s.c"
+        ).read_text(encoding="utf-8")
+
+        self.assertTrue(diagnostics_path.is_file())
+        self.assertTrue(diagnostics_header_path.is_file())
+        diagnostics = diagnostics_path.read_text(encoding="utf-8")
+        header = diagnostics_header_path.read_text(encoding="utf-8")
+        for metric in (
+            "rendered_blocks",
+            "active_voices",
+            "peak_voices",
+            "render_max_us",
+            "write_max_us",
+            "hardware_underruns",
+            "sound_drops",
+            "cache_current_bytes",
+            "cache_peak_bytes",
+            "audio_stack_used_bytes",
+        ):
+            self.assertIn(metric, header)
+        self.assertIn("MSH_CMD_EXPORT(pal_audio", diagnostics)
+        self.assertIn("pal_audio_diagnostics_get", memory)
+        self.assertIn("PAL_AUDIO_MAX_BYTES = 48 * 1024", elf_check)
+        self.assertIn("#if defined(BSP_USING_SDLPAL)", i2s_source)
+        self.assertIn("sdlpal_i2s_underruns", i2s_source)
+        for text in ("mus.mkf", "voc.mkf", "sound0", "pal_audio", "10"):
+            self.assertIn(text, readme)
+        self.assertIn("audio/third_party", upstream)
+
     def test_indexed_framebuffers_are_fixed_in_dtcm(self):
         memory_header = (ROOT / "platform" / "pal_memory.h").read_text(
             encoding="utf-8"

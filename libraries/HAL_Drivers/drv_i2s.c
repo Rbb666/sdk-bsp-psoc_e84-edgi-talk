@@ -43,6 +43,15 @@ bool i2s_skip_frame = false;
 
 static volatile bool i2s_data_ready_flag = false;
 
+#if defined(BSP_USING_SDLPAL)
+static volatile rt_uint32_t sdlpal_i2s_underruns;
+
+uint32_t drv_i2s_sdlpal_underruns(void)
+{
+    return sdlpal_i2s_underruns;
+}
+#endif
+
 uint8_t i2s_playback_volume = DEFAULT_VOLUME;
 /* ASRC variables for down-sampling audio to 16000Hz */
 IFX_ASRC_STRUCT_t asrc_mem_down_sampling;
@@ -877,6 +886,9 @@ void i2s_tx_interrupt_handler(void)
     }
     else if (CY_TDM_INTR_TX_FIFO_UNDERFLOW & intr_status)
     {
+#if defined(BSP_USING_SDLPAL)
+        ++sdlpal_i2s_underruns;
+#endif
         rt_kprintf("Error: I2S transmit underflowed\r\n");
     }
 

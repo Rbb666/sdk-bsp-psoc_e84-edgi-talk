@@ -17,6 +17,13 @@ typedef struct pal_audio_port_metrics
     uint32_t written_blocks;
     uint32_t short_writes;
     uint32_t silence_recoveries;
+    uint32_t render_last_us;
+    uint32_t render_max_us;
+    uint32_t write_last_us;
+    uint32_t write_max_us;
+    uint32_t hardware_underruns;
+    uint32_t audio_stack_used_bytes;
+    uint32_t audio_stack_total_bytes;
 } pal_audio_port_metrics_t;
 
 int pal_audio_port_start(pal_audio_render_fn render, void *context);
