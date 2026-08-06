@@ -59,23 +59,70 @@ void pal_display_palette_set(pal_display_palette_t *palette,
     }
 }
 
-size_t pal_display_convert_rows(const uint8_t *indexed, size_t src_pitch,
-                                uint16_t first_dst_y, uint16_t row_count,
-                                const pal_display_palette_t *palette,
-                                uint16_t *dst, size_t dst_pitch_pixels)
+bool pal_display_viewport_get(uint16_t width, uint16_t height,
+                              bool touch_controls,
+                              pal_display_viewport_t *viewport)
+{
+    uint16_t viewport_width;
+    uint16_t viewport_height;
+
+    if (width == 0u || height == 0u || viewport == NULL)
+    {
+        return false;
+    }
+
+    if (touch_controls)
+    {
+        if (width < PAL_PORTRAIT_WIDTH || height < PAL_GAME_VIEW_HEIGHT)
+        {
+            return false;
+        }
+        viewport_width = PAL_PORTRAIT_WIDTH;
+        viewport_height = PAL_GAME_VIEW_HEIGHT;
+        viewport->x = (uint16_t)((width - viewport_width) / 2u);
+        viewport->y = 0u;
+    }
+    else
+    {
+        viewport_width = (uint16_t)(width - width % 8u);
+        viewport_height = (uint16_t)(((uint32_t)viewport_width * 5u) / 8u);
+        if (viewport_height > height)
+        {
+            viewport_height = (uint16_t)(height - height % 5u);
+            viewport_width =
+                (uint16_t)(((uint32_t)viewport_height * 8u) / 5u);
+        }
+        if (viewport_width == 0u || viewport_height == 0u)
+        {
+            return false;
+        }
+        viewport->x = (uint16_t)((width - viewport_width) / 2u);
+        viewport->y = (uint16_t)((height - viewport_height) / 2u);
+    }
+
+    viewport->width = viewport_width;
+    viewport->height = viewport_height;
+    return true;
+}
+
+size_t pal_display_convert_scaled_rows(
+    const uint8_t *indexed, size_t src_pitch,
+    uint16_t dst_width, uint16_t dst_height,
+    uint16_t first_dst_y, uint16_t row_count,
+    const pal_display_palette_t *palette,
+    uint16_t *dst, size_t dst_pitch_pixels)
 {
     uint16_t available;
     uint16_t row;
 
     if (indexed == NULL || palette == NULL || dst == NULL ||
-        src_pitch < PAL_GAME_WIDTH ||
-        dst_pitch_pixels < PAL_PORTRAIT_WIDTH ||
-        first_dst_y >= PAL_GAME_VIEW_HEIGHT)
+        src_pitch < PAL_GAME_WIDTH || dst_width == 0u || dst_height == 0u ||
+        dst_pitch_pixels < dst_width || first_dst_y >= dst_height)
     {
         return 0u;
     }
 
-    available = (uint16_t)(PAL_GAME_VIEW_HEIGHT - first_dst_y);
+    available = (uint16_t)(dst_height - first_dst_y);
     if (row_count > available)
     {
         row_count = available;
@@ -84,12 +131,12 @@ size_t pal_display_convert_rows(const uint8_t *indexed, size_t src_pitch,
     for (row = 0u; row < row_count; ++row)
     {
         uint32_t dst_y = (uint32_t)first_dst_y + row;
-        uint32_t src_y = (dst_y * 2u) / 3u;
+        uint32_t src_y = (dst_y * PAL_GAME_HEIGHT) / dst_height;
         uint16_t dst_x;
 
-        for (dst_x = 0u; dst_x < PAL_PORTRAIT_WIDTH; ++dst_x)
+        for (dst_x = 0u; dst_x < dst_width; ++dst_x)
         {
-            uint32_t src_x = ((uint32_t)dst_x * 2u) / 3u;
+            uint32_t src_x = ((uint32_t)dst_x * PAL_GAME_WIDTH) / dst_width;
             uint8_t index = indexed[src_y * src_pitch + src_x];
             dst[(size_t)row * dst_pitch_pixels + dst_x] =
                 palette->rgb565[index];
@@ -97,6 +144,16 @@ size_t pal_display_convert_rows(const uint8_t *indexed, size_t src_pitch,
     }
 
     return row_count;
+}
+
+size_t pal_display_convert_rows(const uint8_t *indexed, size_t src_pitch,
+                                uint16_t first_dst_y, uint16_t row_count,
+                                const pal_display_palette_t *palette,
+                                uint16_t *dst, size_t dst_pitch_pixels)
+{
+    return pal_display_convert_scaled_rows(
+        indexed, src_pitch, PAL_PORTRAIT_WIDTH, PAL_GAME_VIEW_HEIGHT,
+        first_dst_y, row_count, palette, dst, dst_pitch_pixels);
 }
 
 void pal_display_draw_controls(uint16_t *dst, size_t pitch,
