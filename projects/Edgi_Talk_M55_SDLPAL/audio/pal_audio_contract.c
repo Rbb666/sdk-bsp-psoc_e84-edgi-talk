@@ -645,6 +645,13 @@ void pal_audio_diagnostics_get(pal_audio_diagnostics_t *diagnostics)
     diagnostics->write_last_us = port.write_last_us;
     diagnostics->write_max_us = port.write_max_us;
     diagnostics->hardware_underruns = port.hardware_underruns;
+    diagnostics->driver_tx_messages = port.driver_tx_messages;
+    diagnostics->driver_rx_messages = port.driver_rx_messages;
+    diagnostics->driver_fifo_irqs = port.driver_fifo_irqs;
+    diagnostics->driver_sem_releases = port.driver_sem_releases;
+    diagnostics->driver_completion_requests =
+        port.driver_completion_requests;
+    diagnostics->driver_mq_send_failures = port.driver_mq_send_failures;
     diagnostics->audio_stack_used_bytes = port.audio_stack_used_bytes;
     diagnostics->audio_stack_total_bytes = port.audio_stack_total_bytes;
 }

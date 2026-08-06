@@ -44,11 +44,31 @@ bool i2s_skip_frame = false;
 static volatile bool i2s_data_ready_flag = false;
 
 #if defined(BSP_USING_SDLPAL)
-static volatile rt_uint32_t sdlpal_i2s_underruns;
+static volatile drv_i2s_sdlpal_metrics_t sdlpal_i2s_metrics;
 
-uint32_t drv_i2s_sdlpal_underruns(void)
+void drv_i2s_sdlpal_metrics_get(drv_i2s_sdlpal_metrics_t *metrics)
 {
-    return sdlpal_i2s_underruns;
+    rt_base_t level;
+
+    if (metrics == RT_NULL)
+    {
+        return;
+    }
+    level = rt_hw_interrupt_disable();
+    metrics->tx_messages = sdlpal_i2s_metrics.tx_messages;
+    metrics->rx_messages = sdlpal_i2s_metrics.rx_messages;
+    metrics->fifo_irqs = sdlpal_i2s_metrics.fifo_irqs;
+    metrics->sem_releases = sdlpal_i2s_metrics.sem_releases;
+    metrics->completion_requests = sdlpal_i2s_metrics.completion_requests;
+    metrics->mq_send_failures = sdlpal_i2s_metrics.mq_send_failures;
+    metrics->underruns = sdlpal_i2s_metrics.underruns;
+    rt_hw_interrupt_enable(level);
+}
+
+static void sdlpal_request_next_frame(struct rt_audio_device *audio)
+{
+    ++sdlpal_i2s_metrics.completion_requests;
+    rt_audio_tx_complete(audio);
 }
 #endif
 
@@ -473,11 +493,16 @@ static rt_err_t sound_start(struct rt_audio_device *audio, int stream)
             (struct sound_device *)audio->parent.user_data;
 
         sdlpal_reset_playback_state(snd_dev, false);
-        sdlpal_i2s_underruns = 0u;
+        rt_memset((void *)&sdlpal_i2s_metrics, 0,
+                  sizeof(sdlpal_i2s_metrics));
 #endif
         music_player_active = true;
         LOG_I("Ready for I2S output \r\n");
+#if defined(BSP_USING_SDLPAL)
+        sdlpal_request_next_frame(audio);
+#else
         rt_audio_tx_complete(audio);
+#endif
     }
 
     return RT_EOK;
@@ -493,7 +518,19 @@ static rt_ssize_t sound_transmit(struct rt_audio_device *audio, const void *writ
         i2s_playback_q_data_t i2s_playback_q_data;
         i2s_playback_q_data.data_len = size >> 1;
         i2s_playback_q_data.data = (rt_int16_t *) writeBuf;
+#if defined(BSP_USING_SDLPAL)
+        if (rt_mq_send(snd_dev->tx_mq, &i2s_playback_q_data,
+                       sizeof(i2s_playback_q_data_t)) == RT_EOK)
+        {
+            ++sdlpal_i2s_metrics.tx_messages;
+        }
+        else
+        {
+            ++sdlpal_i2s_metrics.mq_send_failures;
+        }
+#else
         rt_mq_send(snd_dev->tx_mq, &i2s_playback_q_data, sizeof(i2s_playback_q_data_t));
+#endif
     }
     return size;
 }
@@ -692,10 +729,6 @@ static void sdlpal_prime_first_frame(void)
     app_i2s_activate();
 }
 
-static void sdlpal_request_next_frame(struct rt_audio_device *audio)
-{
-    rt_audio_tx_complete(audio);
-}
 #endif
 
 void i2s_playback_task(void *arg)
@@ -725,6 +758,7 @@ void i2s_playback_task(void *arg)
         {
             continue;
         }
+        ++sdlpal_i2s_metrics.rx_messages;
 #else
         rt_mq_recv(snd_dev->tx_mq, &i2s_playback_q_data, sizeof(i2s_playback_q_data_t), RT_WAITING_FOREVER);
 #endif
@@ -943,6 +977,9 @@ void i2s_tx_interrupt_handler(void)
 
     if (CY_TDM_INTR_TX_FIFO_TRIGGER & intr_status)
     {
+#if defined(BSP_USING_SDLPAL)
+        ++sdlpal_i2s_metrics.fifo_irqs;
+#endif
         if (((PLAYBACK_DATA_FRAME_SIZE / HW_FIFO_SIZE) + 1) == i2s_32_samples_frame_count)
         {
             /* When 5 frames of the data is written into I2S call 10msec frame handlling() */
@@ -977,7 +1014,14 @@ void i2s_tx_interrupt_handler(void)
                 */
                 if ((i2s_playback_ptr == active_i2s_playback_buffer_ptr))
                 {
+#if defined(BSP_USING_SDLPAL)
+                    if (rt_sem_release(snd_dev.tx_sem) == RT_EOK)
+                    {
+                        ++sdlpal_i2s_metrics.sem_releases;
+                    }
+#else
                     rt_sem_release(snd_dev.tx_sem);
+#endif
                 }
             }
         }
@@ -1010,7 +1054,7 @@ void i2s_tx_interrupt_handler(void)
     else if (CY_TDM_INTR_TX_FIFO_UNDERFLOW & intr_status)
     {
 #if defined(BSP_USING_SDLPAL)
-        ++sdlpal_i2s_underruns;
+        ++sdlpal_i2s_metrics.underruns;
 #endif
         rt_kprintf("Error: I2S transmit underflowed\r\n");
     }

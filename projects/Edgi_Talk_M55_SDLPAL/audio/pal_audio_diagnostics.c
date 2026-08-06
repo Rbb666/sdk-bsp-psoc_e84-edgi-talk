@@ -29,6 +29,14 @@ static int pal_audio(int argc, char **argv)
         (unsigned long)audio.write_last_us,
         (unsigned long)audio.write_max_us);
     rt_kprintf(
+        "  driver tx=%lu rx=%lu complete=%lu irq=%lu sem=%lu mq_fail=%lu\n",
+        (unsigned long)audio.driver_tx_messages,
+        (unsigned long)audio.driver_rx_messages,
+        (unsigned long)audio.driver_completion_requests,
+        (unsigned long)audio.driver_fifo_irqs,
+        (unsigned long)audio.driver_sem_releases,
+        (unsigned long)audio.driver_mq_send_failures);
+    rt_kprintf(
         "  voices active=%lu peak=%lu replaced=%lu rejected=%lu\n",
         (unsigned long)audio.active_voices,
         (unsigned long)audio.peak_voices,

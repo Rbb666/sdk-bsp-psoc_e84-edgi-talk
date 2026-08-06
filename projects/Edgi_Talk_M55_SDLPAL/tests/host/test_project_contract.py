@@ -454,11 +454,22 @@ class ProjectContractTest(unittest.TestCase):
             "audio_stack_used_bytes",
         ):
             self.assertIn(metric, header)
+        for metric in (
+            "driver_tx_messages",
+            "driver_rx_messages",
+            "driver_fifo_irqs",
+            "driver_sem_releases",
+            "driver_completion_requests",
+            "driver_mq_send_failures",
+        ):
+            self.assertIn(metric, header)
         self.assertIn("MSH_CMD_EXPORT(pal_audio", diagnostics)
+        self.assertIn("driver tx=", diagnostics)
         self.assertIn("pal_audio_diagnostics_get", memory)
         self.assertIn("PAL_AUDIO_MAX_BYTES = 48 * 1024", elf_check)
         self.assertIn("#if defined(BSP_USING_SDLPAL)", i2s_source)
-        self.assertIn("sdlpal_i2s_underruns", i2s_source)
+        self.assertIn("drv_i2s_sdlpal_metrics_get", i2s_source)
+        self.assertIn("sdlpal_i2s_metrics", i2s_source)
         self.assertIn("sdlpal_reset_playback_state", i2s_source)
         self.assertIn("rt_mq_control(snd_dev->tx_mq", i2s_source)
         self.assertIn("rt_sem_control(snd_dev->tx_sem", i2s_source)

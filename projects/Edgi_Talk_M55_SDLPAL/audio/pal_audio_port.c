@@ -7,7 +7,7 @@
 #include <string.h>
 
 #if defined(BSP_USING_SDLPAL)
-extern uint32_t drv_i2s_sdlpal_underruns(void);
+#include "drv_i2s.h"
 #endif
 
 #define PAL_AUDIO_SAMPLE_RATE 16000u
@@ -217,7 +217,16 @@ void pal_audio_port_metrics_get(pal_audio_port_metrics_t *metrics)
                                               : 0u;
         rt_hw_interrupt_enable(level);
 #if defined(BSP_USING_SDLPAL)
-        metrics->hardware_underruns = drv_i2s_sdlpal_underruns();
+        drv_i2s_sdlpal_metrics_t driver;
+
+        drv_i2s_sdlpal_metrics_get(&driver);
+        metrics->driver_tx_messages = driver.tx_messages;
+        metrics->driver_rx_messages = driver.rx_messages;
+        metrics->driver_fifo_irqs = driver.fifo_irqs;
+        metrics->driver_sem_releases = driver.sem_releases;
+        metrics->driver_completion_requests = driver.completion_requests;
+        metrics->driver_mq_send_failures = driver.mq_send_failures;
+        metrics->hardware_underruns = driver.underruns;
 #endif
     }
 }
