@@ -13,7 +13,8 @@ DISPLAY_FAKE_INCLUDES := -Ifakes_display
 .PHONY: all test_display_core test_display_port test_touch_core test_port_headers test_storage \
 	test_sdl_shim test_sdl_shim_surface_fallback test_libc_compat test_engine_bridge test_boot_state \
 	test_memory_policy test_engine_heap test_save_io_core test_touch_driver \
-	test_touch_poll_cache clean
+	test_touch_poll_cache test_audio_cache test_voc_mixer test_audio_queue \
+	test_rix_output clean
 
 all: test_display_core test_display_port test_touch_core test_port_headers test_storage \
 	test_sdl_shim test_libc_compat test_engine_bridge test_boot_state \

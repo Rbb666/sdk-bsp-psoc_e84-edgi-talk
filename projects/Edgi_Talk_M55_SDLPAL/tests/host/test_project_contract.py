@@ -240,7 +240,8 @@ class ProjectContractTest(unittest.TestCase):
         ):
             self.assertRegex(engine_config, rf"#define\s+{feature}\s+0")
 
-        self.assertIn("PAL_CONTRACT_NO_AUDIO", build_script)
+        self.assertNotIn("PAL_CONTRACT_NO_AUDIO", build_script)
+        self.assertNotIn("unix/contract_noaudio.c", build_script)
         self.assertIn("PAL_PSOC_DIRECT_INDEXED", build_script)
         self.assertIn("PAL_SDL_SHIM_DYNAMIC_SURFACES", build_script)
         self.assertIn("23177627e619731188591288215dc2a61d884ae7", provenance)
@@ -255,6 +256,50 @@ class ProjectContractTest(unittest.TestCase):
         combined = engine_config + build_script
         for mode in forbidden_modes:
             self.assertNotIn(mode, combined)
+
+    def test_audio_integration_contract(self):
+        project_kconfig = (ROOT / "Kconfig").read_text(encoding="utf-8")
+        config = (ROOT / ".config").read_text(encoding="utf-8")
+        rtconfig = (ROOT / "rtconfig.h").read_text(encoding="utf-8")
+        engine_build = (ROOT / "sdlpal" / "SConscript").read_text(
+            encoding="utf-8"
+        )
+        audio_build_path = ROOT / "audio" / "SConscript"
+        i2s_header = (
+            BSP_ROOT / "libraries" / "HAL_Drivers" / "drv_i2s.h"
+        ).read_text(encoding="utf-8")
+        i2s_source = (
+            BSP_ROOT / "libraries" / "HAL_Drivers" / "drv_i2s.c"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("select BSP_USING_AUDIO", project_kconfig)
+        self.assertIn("select BSP_USING_AUDIO_PLAY", project_kconfig)
+        for setting in (
+            "CONFIG_RT_USING_AUDIO=y",
+            "CONFIG_BSP_USING_AUDIO=y",
+            "CONFIG_BSP_USING_AUDIO_PLAY=y",
+        ):
+            self.assertIn(setting, config)
+        for define in (
+            "#define RT_USING_AUDIO",
+            "#define BSP_USING_AUDIO",
+            "#define BSP_USING_AUDIO_PLAY",
+        ):
+            self.assertIn(define, rtconfig)
+
+        self.assertNotIn("unix/contract_noaudio.c", engine_build)
+        self.assertNotIn("PAL_CONTRACT_NO_AUDIO", engine_build)
+        self.assertTrue(audio_build_path.is_file())
+        audio_build = audio_build_path.read_text(encoding="utf-8")
+        self.assertIn("PAL_NO_RUNTIME_HEAP", audio_build)
+        self.assertIn("USE_RIX_EXTRA_INIT", audio_build)
+
+        self.assertIn("#if defined(BSP_USING_SDLPAL)", i2s_header)
+        self.assertIn("PLAYBACK_DATA_FRAME_SIZE", i2s_header)
+        self.assertIn("(512)", i2s_header)
+        self.assertIn("#if defined(BSP_USING_SDLPAL)", i2s_source)
+        self.assertIn("TX_FIFO_SIZE", i2s_source)
+        self.assertIn("(1024)", i2s_source)
 
     def test_indexed_framebuffers_are_fixed_in_dtcm(self):
         memory_header = (ROOT / "platform" / "pal_memory.h").read_text(
