@@ -39,6 +39,9 @@ void pal_audio_mixer_set_volume(pal_audio_mixer_t *mixer,
                                 uint16_t sound_gain_q15);
 int pal_audio_mixer_start_voc(pal_audio_mixer_t *mixer,
                               const void *data, size_t size);
+int pal_audio_mixer_start_voc_slot(pal_audio_mixer_t *mixer,
+                                   const void *data, size_t size,
+                                   size_t *voice_slot, int *replaced);
 void pal_audio_mixer_render(pal_audio_mixer_t *mixer,
                             const int16_t *music, int16_t *output,
                             size_t sample_count);

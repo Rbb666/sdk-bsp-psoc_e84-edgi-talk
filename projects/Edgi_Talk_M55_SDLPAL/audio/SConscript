@@ -24,7 +24,8 @@ defines = [
 ]
 
 group = DefineGroup(
-    'SDLPalAudio', src, depend=['BSP_USING_SDLPAL'], CPPPATH=path,
-    CPPDEFINES=defines, LOCAL_CXXFLAGS=' -fno-exceptions -fno-rtti')
+    'SDLPalAudio', src, depend=['BSP_USING_SDLPAL'], LOCAL_CPPPATH=path,
+    LOCAL_CPPDEFINES=defines,
+    LOCAL_CXXFLAGS=' -fno-exceptions -fno-rtti')
 
 Return('group')

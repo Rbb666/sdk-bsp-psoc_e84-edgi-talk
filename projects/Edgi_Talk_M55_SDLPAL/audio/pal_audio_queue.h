@@ -28,6 +28,7 @@ typedef struct pal_audio_music_command
     uint16_t sound_gain_q15;
     uint8_t loop;
     uint8_t enabled;
+    uint8_t sound_enabled;
 } pal_audio_music_command_t;
 
 typedef enum pal_audio_music_publish_result

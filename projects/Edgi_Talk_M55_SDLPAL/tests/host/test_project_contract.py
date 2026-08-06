@@ -329,6 +329,49 @@ class ProjectContractTest(unittest.TestCase):
             r"\.sdlpal_audio\s*\(NOLOAD\)[\s\S]*?}\s*>\s*m55_data_secondary",
         )
 
+    def test_audio_contract_is_project_owned(self):
+        contract_path = ROOT / "audio" / "pal_audio_contract.c"
+        resources_path = ROOT / "audio" / "pal_audio_resources.c"
+        backend = (ROOT / "platform" / "pal_backend_stubs.c").read_text(
+            encoding="utf-8"
+        )
+        engine_build = (ROOT / "sdlpal" / "SConscript").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertTrue(contract_path.is_file())
+        self.assertTrue(resources_path.is_file())
+        contract = contract_path.read_text(encoding="utf-8")
+        resources = resources_path.read_text(encoding="utf-8")
+        self.assertEqual(contract.count("AUDIODEVICE gAudioDevice"), 1)
+        for function in (
+            "AUDIO_OpenDevice",
+            "AUDIO_CD_Available",
+            "AUDIO_CloseDevice",
+            "AUDIO_GetDeviceSpec",
+            "AUDIO_IncreaseVolume",
+            "AUDIO_DecreaseVolume",
+            "AUDIO_PlayMusic",
+            "AUDIO_PlayCDTrack",
+            "AUDIO_PlaySound",
+            "AUDIO_EnableMusic",
+            "AUDIO_MusicEnabled",
+            "AUDIO_EnableSound",
+            "AUDIO_SoundEnabled",
+            "AUDIO_Lock",
+            "AUDIO_Unlock",
+        ):
+            self.assertIn(function + "(", contract)
+        self.assertIn('"mus.mkf"', resources)
+        self.assertIn('"voc.mkf"', resources)
+        self.assertIn("PAL_MKFGetChunkSize", resources)
+        self.assertIn("PAL_MKFReadChunk", resources)
+        self.assertIn("pal_cold_alloc", resources)
+        self.assertIn("PAL_MEMORY_TAG_RESOURCE", resources)
+        self.assertNotIn("RIX_Init(", backend)
+        self.assertNotIn("SOUND_Init(", backend)
+        self.assertNotIn("unix/contract_noaudio.c", engine_build)
+
     def test_indexed_framebuffers_are_fixed_in_dtcm(self):
         memory_header = (ROOT / "platform" / "pal_memory.h").read_text(
             encoding="utf-8"

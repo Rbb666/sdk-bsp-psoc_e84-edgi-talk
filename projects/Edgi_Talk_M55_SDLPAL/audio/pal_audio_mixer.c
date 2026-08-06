@@ -64,12 +64,23 @@ void pal_audio_mixer_set_volume(pal_audio_mixer_t *mixer,
     mixer->sound_gain_q15 = sound_gain_q15;
 }
 
-int pal_audio_mixer_start_voc(pal_audio_mixer_t *mixer,
-                              const void *data, size_t size)
+int pal_audio_mixer_start_voc_slot(pal_audio_mixer_t *mixer,
+                                   const void *data, size_t size,
+                                   size_t *voice_slot, int *replaced)
 {
     pal_voc_view_t view;
     size_t selected = PAL_AUDIO_MIXER_MAX_VOICES;
     size_t i;
+    int replacing = 0;
+
+    if (voice_slot != NULL)
+    {
+        *voice_slot = PAL_AUDIO_MIXER_MAX_VOICES;
+    }
+    if (replaced != NULL)
+    {
+        *replaced = 0;
+    }
 
     if (mixer == NULL || mixer->output_rate == 0u ||
         !pal_voc_open(&view, data, size))
@@ -91,6 +102,7 @@ int pal_audio_mixer_start_voc(pal_audio_mixer_t *mixer,
     }
     if (selected == PAL_AUDIO_MIXER_MAX_VOICES)
     {
+        replacing = 1;
         selected = 0u;
         for (i = 1u; i < PAL_AUDIO_MIXER_MAX_VOICES; ++i)
         {
@@ -115,6 +127,14 @@ int pal_audio_mixer_start_voc(pal_audio_mixer_t *mixer,
     }
     mixer->voices[selected].serial = mixer->serial;
     mixer->voices[selected].active = 1u;
+    if (voice_slot != NULL)
+    {
+        *voice_slot = selected;
+    }
+    if (replaced != NULL)
+    {
+        *replaced = replacing;
+    }
 
     i = pal_audio_mixer_active_voices(mixer);
     if (i > mixer->metrics.peak_voices)
@@ -122,6 +142,12 @@ int pal_audio_mixer_start_voc(pal_audio_mixer_t *mixer,
         mixer->metrics.peak_voices = (uint32_t)i;
     }
     return 1;
+}
+
+int pal_audio_mixer_start_voc(pal_audio_mixer_t *mixer,
+                              const void *data, size_t size)
+{
+    return pal_audio_mixer_start_voc_slot(mixer, data, size, NULL, NULL);
 }
 
 void pal_audio_mixer_render(pal_audio_mixer_t *mixer,

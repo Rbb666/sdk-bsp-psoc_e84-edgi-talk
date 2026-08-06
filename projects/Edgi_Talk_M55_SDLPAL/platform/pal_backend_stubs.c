@@ -3,12 +3,6 @@
 
 #include <string.h>
 
-LPAUDIOPLAYER RIX_Init(LPCSTR file_name)
-{
-    (void)file_name;
-    return NULL;
-}
-
 LPAUDIOPLAYER OGG_Init(void)
 {
     return NULL;
@@ -30,11 +24,6 @@ LPAUDIOPLAYER TIMIDITY_Init(void)
 }
 
 LPAUDIOPLAYER TSF_Init(void)
-{
-    return NULL;
-}
-
-LPAUDIOPLAYER SOUND_Init(void)
 {
     return NULL;
 }

@@ -199,6 +199,33 @@ static void test_four_voice_mixer_and_saturation(void)
     assert(metrics.replaced_voices == 1u);
 }
 
+static void test_voice_slot_reporting(void)
+{
+    const uint8_t samples[] = {128u, 255u, 128u, 0u};
+    voc_builder_t builder;
+    pal_audio_mixer_t mixer;
+    size_t slot = PAL_AUDIO_MIXER_MAX_VOICES;
+    int replaced = -1;
+    unsigned i;
+
+    voc_begin(&builder);
+    add_pcm(&builder, 131u, samples, sizeof(samples));
+    voc_end(&builder);
+    pal_audio_mixer_init(&mixer, 8000u);
+
+    for (i = 0u; i < PAL_AUDIO_MIXER_MAX_VOICES; ++i)
+    {
+        assert(pal_audio_mixer_start_voc_slot(
+            &mixer, builder.data, builder.size, &slot, &replaced));
+        assert(slot == i);
+        assert(replaced == 0);
+    }
+    assert(pal_audio_mixer_start_voc_slot(
+        &mixer, builder.data, builder.size, &slot, &replaced));
+    assert(slot == 0u);
+    assert(replaced == 1);
+}
+
 int main(void)
 {
     test_parser_and_same_rate_pcm();
@@ -206,6 +233,7 @@ int main(void)
     test_extended_rate_and_corrupt_inputs();
     test_fixed_point_upsampling();
     test_four_voice_mixer_and_saturation();
+    test_voice_slot_reporting();
     puts("voc_mixer: PASS");
     return 0;
 }

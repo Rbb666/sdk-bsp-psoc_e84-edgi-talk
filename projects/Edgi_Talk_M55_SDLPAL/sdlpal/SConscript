@@ -38,7 +38,6 @@ src = [upstream + '/' + name for name in core_sources]
 src += [
     upstream + '/sdl_compat/sdl_compat.c',
     upstream + '/esp32s3/native_engine_shim/sdl_shim.c',
-    upstream + '/unix/contract_noaudio.c',
 ]
 
 path = [
@@ -55,7 +54,6 @@ defines = [
     ('PAL_SDL_SHIM_EXTERNAL_SURFACES_ONLY', 1),
     ('PAL_SDL_SHIM_DYNAMIC_SURFACES', 1),
     ('PAL_PSOC_DIRECT_INDEXED', 1),
-    ('PAL_CONTRACT_NO_AUDIO', 1),
     ('PAL_NO_LAUNCH_UI', 1),
     ('SHIM_MAX_SURFACES', 8),
     ('SHIM_MAX_PALETTES', 8),

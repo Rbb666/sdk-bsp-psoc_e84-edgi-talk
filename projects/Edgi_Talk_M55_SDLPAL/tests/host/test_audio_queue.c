@@ -26,6 +26,7 @@ static pal_audio_music_command_t music_command(int16_t track,
     command.track = track;
     command.loop = 1u;
     command.enabled = 1u;
+    command.sound_enabled = 1u;
     command.music_gain_q15 = PAL_AUDIO_COMMAND_GAIN_ONE;
     command.sound_gain_q15 = PAL_AUDIO_COMMAND_GAIN_ONE / 2u;
     command.half_fade_samples = 8000u;
@@ -86,6 +87,7 @@ static void test_music_snapshot_coalescing(void)
     assert(received.track == 2);
     assert(received.loop == 1u);
     assert(received.enabled == 1u);
+    assert(received.sound_enabled == 1u);
     assert(received.music_gain_q15 == PAL_AUDIO_COMMAND_GAIN_ONE);
     assert(received.sound_gain_q15 == PAL_AUDIO_COMMAND_GAIN_ONE / 2u);
     assert(received.half_fade_samples == 8000u);
