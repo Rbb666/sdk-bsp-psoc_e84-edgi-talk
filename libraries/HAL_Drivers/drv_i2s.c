@@ -682,6 +682,22 @@ void convert_mono_to_stereo(int16_t *mono_data, rt_uint32_t mono_data_num_sample
     }
 }
 
+#if defined(BSP_USING_SDLPAL)
+static void sdlpal_prime_first_frame(void)
+{
+    i2s_playback_ptr = active_i2s_playback_buffer_ptr;
+    i2s_data_ready_flag = false;
+    app_i2s_enable();
+    i2s_write_32_samples();
+    app_i2s_activate();
+}
+
+static void sdlpal_request_next_frame(struct rt_audio_device *audio)
+{
+    rt_audio_tx_complete(audio);
+}
+#endif
+
 void i2s_playback_task(void *arg)
 {
     struct rt_audio_device *audio = (struct rt_audio_device *)arg;
@@ -808,6 +824,9 @@ void i2s_playback_task(void *arg)
             /* Only for the first frame, the I2S write happens from this task. */
             if (!i2s_deinit_flag)
             {
+#if defined(BSP_USING_SDLPAL)
+                sdlpal_prime_first_frame();
+#else
                 app_i2s_enable();
 
                 for (int i = 0; i < HW_FIFO_SIZE; i++)
@@ -818,6 +837,7 @@ void i2s_playback_task(void *arg)
                     Cy_AudioTDM_WriteTxData(TDM_STRUCT0_TX, (rt_uint32_t) 0);
                 }
                 app_i2s_activate();
+#endif
                 es8388_volume_set(snd_dev->volume);
             }
             i2s_data_ready_flag = false;
@@ -884,6 +904,9 @@ void i2s_playback_task(void *arg)
 
         /* Reset first frame flag. */
         first_frame = false;
+#if defined(BSP_USING_SDLPAL)
+        sdlpal_request_next_frame(audio);
+#else
         while (audio->replay->queue.is_empty == 1)
         {
             rt_thread_mdelay(1);
@@ -896,6 +919,7 @@ void i2s_playback_task(void *arg)
 #endif
         }
         rt_audio_tx_complete(audio);
+#endif
     }
 }
 

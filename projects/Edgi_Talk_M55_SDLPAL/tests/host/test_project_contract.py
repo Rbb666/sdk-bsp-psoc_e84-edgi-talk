@@ -387,6 +387,39 @@ class ProjectContractTest(unittest.TestCase):
         self.assertNotIn("SOUND_Init(", backend)
         self.assertNotIn("unix/contract_noaudio.c", engine_build)
 
+    def test_sdlpal_i2s_replay_is_hardware_paced(self):
+        source = (
+            BSP_ROOT / "libraries" / "HAL_Drivers" / "drv_i2s.c"
+        ).read_text(encoding="utf-8")
+
+        prime = re.search(
+            r"static void sdlpal_prime_first_frame\(void\)\s*"
+            r"\{(?P<body>[\s\S]*?)\n\}",
+            source,
+        )
+        self.assertIsNotNone(prime)
+        self.assertIn(
+            "i2s_playback_ptr = active_i2s_playback_buffer_ptr;",
+            prime.group("body"),
+        )
+        self.assertIn("i2s_write_32_samples();", prime.group("body"))
+
+        request = re.search(
+            r"static void sdlpal_request_next_frame\("
+            r"struct rt_audio_device \*audio\)\s*"
+            r"\{(?P<body>[\s\S]*?)\n\}",
+            source,
+        )
+        self.assertIsNotNone(request)
+        self.assertIn("rt_audio_tx_complete(audio);", request.group("body"))
+        self.assertIn("sdlpal_request_next_frame(audio);", source)
+        self.assertRegex(
+            source,
+            r"#if defined\(BSP_USING_SDLPAL\)\s*"
+            r"sdlpal_request_next_frame\(audio\);\s*#else\s*"
+            r"while \(audio->replay->queue.is_empty == 1\)",
+        )
+
     def test_audio_diagnostics_and_documentation_contract(self):
         diagnostics_path = ROOT / "audio" / "pal_audio_diagnostics.c"
         diagnostics_header_path = ROOT / "audio" / "pal_audio_diagnostics.h"
