@@ -468,9 +468,6 @@ class ProjectContractTest(unittest.TestCase):
     def test_audio_diagnostics_are_removed(self):
         diagnostics_path = ROOT / "audio" / "pal_audio_diagnostics.c"
         diagnostics_header_path = ROOT / "audio" / "pal_audio_diagnostics.h"
-        memory = (ROOT / "platform" / "pal_memory.c").read_text(
-            encoding="utf-8"
-        )
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         upstream = (ROOT / "sdlpal" / "UPSTREAM.md").read_text(
             encoding="utf-8"
@@ -481,34 +478,38 @@ class ProjectContractTest(unittest.TestCase):
         contract = (ROOT / "audio" / "pal_audio_contract.c").read_text(
             encoding="utf-8"
         )
-        audio_sources = "\n".join(
-            path.read_text(encoding="utf-8")
-            for path in (ROOT / "audio").glob("*.c")
+        i2s_paths = tuple(
+            BSP_ROOT / "libraries" / "HAL_Drivers" / name
+            for name in ("drv_i2s.c", "drv_i2s.h")
         )
-        port_header = (ROOT / "audio" / "pal_audio_port.h").read_text(
-            encoding="utf-8"
+        project_sources = tuple(
+            path
+            for path in ROOT.rglob("*")
+            if path.is_file()
+            and path.suffix.lower() in {".c", ".cpp", ".h"}
+            and "tests" not in path.parts
         )
-        port_source = (ROOT / "audio" / "pal_audio_port.c").read_text(
-            encoding="utf-8"
+        production_paths = project_sources + i2s_paths
+        production_text = "\n".join(
+            path.read_text(encoding="utf-8") for path in production_paths
         )
-        i2s_header = (
-            BSP_ROOT / "libraries" / "HAL_Drivers" / "drv_i2s.h"
-        ).read_text(encoding="utf-8")
-        i2s_source = (
-            BSP_ROOT / "libraries" / "HAL_Drivers" / "drv_i2s.c"
-        ).read_text(encoding="utf-8")
+        production_names = "\n".join(
+            path.as_posix() for path in production_paths
+        )
+        i2s_source = i2s_paths[0].read_text(encoding="utf-8")
 
         self.assertFalse(diagnostics_path.exists())
         self.assertFalse(diagnostics_header_path.exists())
-        self.assertNotIn("pal_audio_diagnostics", memory)
-        self.assertNotIn("pal_audio_diagnostics", contract)
-        self.assertNotIn("pal_audio_port_metrics", port_header)
-        self.assertNotIn("pal_audio_port_metrics_get", port_source)
-        self.assertNotIn("drv_i2s_sdlpal_metrics", i2s_header)
-        self.assertNotIn("drv_i2s_sdlpal_metrics_get", i2s_source)
-        self.assertNotIn("sdlpal_i2s_metrics", i2s_source)
-        self.assertNotIn("MSH_CMD_EXPORT(pal_audio", audio_sources)
-        self.assertNotIn("msh /> pal_audio", readme)
+        for removed_symbol in (
+            "pal_audio_diagnostics",
+            "pal_audio_port_metrics",
+            "drv_i2s_sdlpal_metrics",
+            "sdlpal_i2s_metrics",
+            "MSH_CMD_EXPORT(pal_audio",
+        ):
+            self.assertNotIn(removed_symbol, production_text)
+        self.assertNotIn("pal_audio_diagnostics", production_names)
+        self.assertNotRegex(readme, r"\bpal_audio\b")
         self.assertIn("PAL_AUDIO_MAX_BYTES = 48 * 1024", elf_check)
         self.assertIn("#if defined(BSP_USING_SDLPAL)", i2s_source)
         self.assertIn("sdlpal_reset_playback_state", i2s_source)
