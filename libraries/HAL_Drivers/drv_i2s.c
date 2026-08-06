@@ -45,6 +45,41 @@ static volatile bool i2s_data_ready_flag = false;
 
 #if defined(BSP_USING_SDLPAL)
 static volatile drv_i2s_sdlpal_metrics_t sdlpal_i2s_metrics;
+static volatile rt_uint32_t sdlpal_replay_generation;
+static volatile bool sdlpal_replay_active;
+
+static void sdlpal_replay_transition(bool active)
+{
+    rt_base_t level = rt_hw_interrupt_disable();
+
+    ++sdlpal_replay_generation;
+    sdlpal_replay_active = active;
+    rt_hw_interrupt_enable(level);
+}
+
+static bool sdlpal_replay_snapshot(rt_uint32_t *generation)
+{
+    rt_base_t level;
+    bool active;
+
+    level = rt_hw_interrupt_disable();
+    *generation = sdlpal_replay_generation;
+    active = sdlpal_replay_active;
+    rt_hw_interrupt_enable(level);
+    return active;
+}
+
+static bool sdlpal_replay_is_current(rt_uint32_t generation)
+{
+    rt_base_t level;
+    bool current;
+
+    level = rt_hw_interrupt_disable();
+    current = sdlpal_replay_active &&
+              generation == sdlpal_replay_generation;
+    rt_hw_interrupt_enable(level);
+    return current;
+}
 
 void drv_i2s_sdlpal_metrics_get(drv_i2s_sdlpal_metrics_t *metrics)
 {
@@ -492,9 +527,11 @@ static rt_err_t sound_start(struct rt_audio_device *audio, int stream)
         struct sound_device *snd_dev =
             (struct sound_device *)audio->parent.user_data;
 
+        sdlpal_replay_transition(false);
         sdlpal_reset_playback_state(snd_dev, false);
         rt_memset((void *)&sdlpal_i2s_metrics, 0,
                   sizeof(sdlpal_i2s_metrics));
+        sdlpal_replay_transition(true);
 #endif
         music_player_active = true;
         LOG_I("Ready for I2S output \r\n");
@@ -545,6 +582,7 @@ static rt_err_t sound_stop(struct rt_audio_device *audio, int stream)
             (struct sound_device *)audio->parent.user_data;
 
         music_player_active = false;
+        sdlpal_replay_transition(false);
         sdlpal_reset_playback_state(snd_dev, true);
         rt_data_queue_reset(&audio->replay->queue);
         audio->replay->write_index = 0u;
@@ -745,6 +783,9 @@ void i2s_playback_task(void *arg)
     // int32_t* asrc_out_ptr = NULL;
 
     i2s_playback_q_data_t i2s_playback_q_data;
+#if defined(BSP_USING_SDLPAL)
+    rt_uint32_t replay_generation;
+#endif
 
     active_i2s_playback_buffer_ptr = i2s_stereo_playback_buffer1;
     inactive_i2s_playback_buffer_ptr = i2s_stereo_playback_buffer2;
@@ -759,6 +800,10 @@ void i2s_playback_task(void *arg)
             continue;
         }
         ++sdlpal_i2s_metrics.rx_messages;
+        if (!sdlpal_replay_snapshot(&replay_generation))
+        {
+            continue;
+        }
 #else
         rt_mq_recv(snd_dev->tx_mq, &i2s_playback_q_data, sizeof(i2s_playback_q_data_t), RT_WAITING_FOREVER);
 #endif
@@ -859,7 +904,18 @@ void i2s_playback_task(void *arg)
             if (!i2s_deinit_flag)
             {
 #if defined(BSP_USING_SDLPAL)
+                if (!sdlpal_replay_is_current(replay_generation))
+                {
+                    continue;
+                }
+                rt_enter_critical();
+                if (!sdlpal_replay_is_current(replay_generation))
+                {
+                    rt_exit_critical();
+                    continue;
+                }
                 sdlpal_prime_first_frame();
+                rt_exit_critical();
 #else
                 app_i2s_enable();
 
@@ -933,14 +989,31 @@ void i2s_playback_task(void *arg)
          */
         if (!first_frame && !i2s_deinit_flag)
         {
+#if defined(BSP_USING_SDLPAL)
+            if (rt_sem_take(snd_dev->tx_sem, RT_WAITING_FOREVER)
+                    != RT_EOK ||
+                    !sdlpal_replay_is_current(replay_generation))
+            {
+                continue;
+            }
+#else
             rt_sem_take(snd_dev->tx_sem, RT_WAITING_FOREVER);
+#endif
         }
 
         /* Reset first frame flag. */
-        first_frame = false;
 #if defined(BSP_USING_SDLPAL)
+        rt_enter_critical();
+        if (!sdlpal_replay_is_current(replay_generation))
+        {
+            rt_exit_critical();
+            continue;
+        }
+        first_frame = false;
         sdlpal_request_next_frame(audio);
+        rt_exit_critical();
 #else
+        first_frame = false;
         while (audio->replay->queue.is_empty == 1)
         {
             rt_thread_mdelay(1);
@@ -1051,7 +1124,7 @@ void i2s_tx_interrupt_handler(void)
 
         }
     }
-    else if (CY_TDM_INTR_TX_FIFO_UNDERFLOW & intr_status)
+    if (CY_TDM_INTR_TX_FIFO_UNDERFLOW & intr_status)
     {
 #if defined(BSP_USING_SDLPAL)
         ++sdlpal_i2s_metrics.underruns;

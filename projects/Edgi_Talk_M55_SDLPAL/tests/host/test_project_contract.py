@@ -416,8 +416,36 @@ class ProjectContractTest(unittest.TestCase):
         self.assertRegex(
             source,
             r"#if defined\(BSP_USING_SDLPAL\)\s*"
-            r"sdlpal_request_next_frame\(audio\);\s*#else\s*"
+            r"rt_enter_critical\(\);[\s\S]*?"
+            r"sdlpal_request_next_frame\(audio\);\s*"
+            r"rt_exit_critical\(\);\s*#else\s*"
+            r"first_frame = false;\s*"
             r"while \(audio->replay->queue.is_empty == 1\)",
+        )
+
+    def test_sdlpal_i2s_stop_invalidates_inflight_frames(self):
+        source = (
+            BSP_ROOT / "libraries" / "HAL_Drivers" / "drv_i2s.c"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("sdlpal_replay_generation", source)
+        self.assertIn("sdlpal_replay_active", source)
+        self.assertIn("sdlpal_replay_snapshot", source)
+        self.assertGreaterEqual(
+            source.count("sdlpal_replay_is_current(replay_generation)"),
+            3,
+        )
+        self.assertRegex(
+            source,
+            r"rt_sem_take\(snd_dev->tx_sem, RT_WAITING_FOREVER\)"
+            r"\s*!= RT_EOK",
+        )
+        self.assertNotIn(
+            "else if (CY_TDM_INTR_TX_FIFO_UNDERFLOW & intr_status)",
+            source,
+        )
+        self.assertIn(
+            "if (CY_TDM_INTR_TX_FIFO_UNDERFLOW & intr_status)", source
         )
 
     def test_audio_diagnostics_and_documentation_contract(self):
