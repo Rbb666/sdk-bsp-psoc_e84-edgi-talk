@@ -19,6 +19,11 @@
 #define PAL_DISPLAY_LOGICAL_HEIGHT 800u
 #endif
 
+#if defined(BSP_SDLPAL_INPUT_TOUCH) == \
+    defined(BSP_SDLPAL_INPUT_USB_KEYBOARD)
+#error "Select exactly one SDLPal input mode"
+#endif
+
 #if defined(__GNUC__)
 #define PAL_GFX_BUFFER __attribute__((section(".cy_gpu_buf"), aligned(64)))
 #else
@@ -27,10 +32,14 @@
 
 static PAL_GFX_BUFFER uint16_t
     display_strip[PAL_DISPLAY_STRIP_WIDTH * PAL_DISPLAY_STRIP_ROWS];
+#if defined(BSP_SDLPAL_INPUT_TOUCH)
 static uint32_t requested_control_mask;
 static uint32_t rendered_control_mask;
-static pal_display_metrics_t display_metrics;
 static bool controls_initialized;
+#else
+static bool bars_initialized;
+#endif
+static pal_display_metrics_t display_metrics;
 static bool indexed_success_logged;
 static bool indexed_fallback_logged;
 
@@ -38,6 +47,8 @@ static uint32_t display_now_microseconds(void)
 {
     return (uint32_t)(rt_tick_get_millisecond() * 1000u);
 }
+
+#if defined(BSP_SDLPAL_INPUT_TOUCH)
 
 static bool flush_control_region(uint16_t x, uint16_t y,
                                  uint16_t width, uint16_t height,
@@ -143,33 +154,120 @@ static void flush_dirty_controls(uint32_t changed_mask)
     }
 }
 
+#else
+
+static void flush_black_region(uint16_t x, uint16_t y,
+                               uint16_t width, uint16_t height,
+                               bool present_on_last)
+{
+    uint16_t row_offset;
+
+    for (row_offset = 0u; row_offset < height;
+         row_offset = (uint16_t)(row_offset + PAL_DISPLAY_STRIP_ROWS))
+    {
+        uint16_t rows = (uint16_t)(height - row_offset);
+        uint16_t column_offset;
+
+        if (rows > PAL_DISPLAY_STRIP_ROWS)
+        {
+            rows = PAL_DISPLAY_STRIP_ROWS;
+        }
+        for (column_offset = 0u; column_offset < width;
+             column_offset = (uint16_t)(column_offset +
+                                        PAL_DISPLAY_STRIP_WIDTH))
+        {
+            uint16_t columns = (uint16_t)(width - column_offset);
+            bool last;
+
+            if (columns > PAL_DISPLAY_STRIP_WIDTH)
+            {
+                columns = PAL_DISPLAY_STRIP_WIDTH;
+            }
+            memset(display_strip, 0,
+                   (size_t)columns * rows * sizeof(display_strip[0]));
+            last = present_on_last &&
+                   (uint16_t)(row_offset + rows) == height &&
+                   (uint16_t)(column_offset + columns) == width;
+            lcd_flush_rgb565_area(display_strip,
+                                  (uint16_t)(x + column_offset),
+                                  (uint16_t)(y + row_offset),
+                                  columns, rows, columns,
+                                  last ? RT_TRUE : RT_FALSE);
+        }
+    }
+}
+
+static void flush_black_bars(const pal_display_viewport_t *viewport)
+{
+    pal_display_viewport_t regions[4];
+    uint16_t viewport_right = (uint16_t)(viewport->x + viewport->width);
+    uint16_t viewport_bottom = (uint16_t)(viewport->y + viewport->height);
+    size_t count = 0u;
+    size_t i;
+
+    if (viewport->y != 0u)
+    {
+        regions[count++] = (pal_display_viewport_t){
+            0u, 0u, PAL_DISPLAY_LOGICAL_WIDTH, viewport->y};
+    }
+    if (viewport_bottom < PAL_DISPLAY_LOGICAL_HEIGHT)
+    {
+        regions[count++] = (pal_display_viewport_t){
+            0u, viewport_bottom, PAL_DISPLAY_LOGICAL_WIDTH,
+            (uint16_t)(PAL_DISPLAY_LOGICAL_HEIGHT - viewport_bottom)};
+    }
+    if (viewport->x != 0u)
+    {
+        regions[count++] = (pal_display_viewport_t){
+            0u, viewport->y, viewport->x, viewport->height};
+    }
+    if (viewport_right < PAL_DISPLAY_LOGICAL_WIDTH)
+    {
+        regions[count++] = (pal_display_viewport_t){
+            viewport_right, viewport->y,
+            (uint16_t)(PAL_DISPLAY_LOGICAL_WIDTH - viewport_right),
+            viewport->height};
+    }
+
+    for (i = 0u; i < count; ++i)
+    {
+        flush_black_region(regions[i].x, regions[i].y,
+                           regions[i].width, regions[i].height,
+                           i + 1u == count);
+    }
+}
+
+#endif
+
 static bool present_cpu_fallback(const uint8_t *pixels, size_t pitch,
                                  const pal_display_palette_t *palette,
-                                 uint16_t game_x, bool present_on_last)
+                                 const pal_display_viewport_t *viewport,
+                                 bool present_on_last)
 {
     uint16_t first_y;
 
-    for (first_y = 0u; first_y < PAL_GAME_VIEW_HEIGHT;
+    for (first_y = 0u; first_y < viewport->height;
          first_y = (uint16_t)(first_y + PAL_DISPLAY_STRIP_ROWS))
     {
-        uint16_t rows = (uint16_t)(PAL_GAME_VIEW_HEIGHT - first_y);
+        uint16_t rows = (uint16_t)(viewport->height - first_y);
         bool present;
 
         if (rows > PAL_DISPLAY_STRIP_ROWS)
         {
             rows = PAL_DISPLAY_STRIP_ROWS;
         }
-        if (pal_display_convert_rows(pixels, pitch, first_y, rows,
-                                     palette, display_strip,
-                                     PAL_DISPLAY_STRIP_WIDTH) != rows)
+        if (pal_display_convert_scaled_rows(
+                pixels, pitch, viewport->width, viewport->height,
+                first_y, rows, palette, display_strip,
+                viewport->width) != rows)
         {
             return false;
         }
         present = present_on_last &&
-                  (uint16_t)(first_y + rows) == PAL_GAME_VIEW_HEIGHT;
-        lcd_flush_rgb565_area(display_strip, game_x, first_y,
-                              PAL_PORTRAIT_WIDTH, rows,
-                              PAL_DISPLAY_STRIP_WIDTH,
+                  (uint16_t)(first_y + rows) == viewport->height;
+        lcd_flush_rgb565_area(display_strip, viewport->x,
+                              (uint16_t)(viewport->y + first_y),
+                              viewport->width, rows, viewport->width,
                               present ? RT_TRUE : RT_FALSE);
     }
 
@@ -180,10 +278,13 @@ bool pal_display_present_indexed(const uint8_t *pixels, size_t pitch,
                                  const pal_rgb_t palette[256])
 {
     pal_display_palette_t converted_palette;
-    uint16_t game_x = (uint16_t)((PAL_DISPLAY_LOGICAL_WIDTH -
-                                  PAL_PORTRAIT_WIDTH) /
-                                 2u);
+    pal_display_viewport_t viewport;
+#if defined(BSP_SDLPAL_INPUT_TOUCH)
     bool controls_changed;
+#else
+    bool bars_need_clear;
+#endif
+    bool defer_present;
     bool indexed_ok = false;
     uint32_t started;
 
@@ -192,10 +293,30 @@ bool pal_display_present_indexed(const uint8_t *pixels, size_t pitch,
     {
         return false;
     }
+    if (!pal_display_viewport_get(
+            PAL_DISPLAY_LOGICAL_WIDTH, PAL_DISPLAY_LOGICAL_HEIGHT,
+#if defined(BSP_SDLPAL_INPUT_TOUCH)
+            true,
+#else
+            false,
+#endif
+            &viewport))
+    {
+        return false;
+    }
 
     started = display_now_microseconds();
+#if defined(BSP_SDLPAL_INPUT_TOUCH)
     controls_changed = !controls_initialized ||
                        rendered_control_mask != requested_control_mask;
+    defer_present = controls_changed;
+#else
+    bars_need_clear = !bars_initialized &&
+                      ((uint32_t)viewport.width * viewport.height !=
+                       (uint32_t)PAL_DISPLAY_LOGICAL_WIDTH *
+                           PAL_DISPLAY_LOGICAL_HEIGHT);
+    defer_present = bars_need_clear;
+#endif
     pal_display_palette_set(&converted_palette, palette);
 
 #ifdef BSP_LCD_VGLITE_INDEXED
@@ -203,10 +324,9 @@ bool pal_display_present_indexed(const uint8_t *pixels, size_t pitch,
                                    PAL_GAME_WIDTH, PAL_GAME_HEIGHT,
                                    (uint32_t)pitch,
                                    converted_palette.argb8888,
-                                   game_x, 0u,
-                                   PAL_PORTRAIT_WIDTH,
-                                   PAL_GAME_VIEW_HEIGHT,
-                                   controls_changed ? RT_FALSE : RT_TRUE);
+                                   viewport.x, viewport.y,
+                                   viewport.width, viewport.height,
+                                   defer_present ? RT_FALSE : RT_TRUE);
 #endif
     if (indexed_ok)
     {
@@ -226,12 +346,13 @@ bool pal_display_present_indexed(const uint8_t *pixels, size_t pitch,
             indexed_fallback_logged = true;
         }
         if (!present_cpu_fallback(pixels, pitch, &converted_palette,
-                                  game_x, !controls_changed))
+                                  &viewport, !defer_present))
         {
             return false;
         }
     }
 
+#if defined(BSP_SDLPAL_INPUT_TOUCH)
     if (controls_changed)
     {
         if (controls_initialized)
@@ -246,6 +367,13 @@ bool pal_display_present_indexed(const uint8_t *pixels, size_t pitch,
         }
         rendered_control_mask = requested_control_mask;
     }
+#else
+    if (bars_need_clear)
+    {
+        flush_black_bars(&viewport);
+    }
+    bars_initialized = true;
+#endif
 
     display_metrics.last_microseconds =
         display_now_microseconds() - started;
@@ -259,6 +387,7 @@ bool pal_display_present_indexed(const uint8_t *pixels, size_t pitch,
 
 void pal_display_controls_set(uint32_t pressed_mask)
 {
+#if defined(BSP_SDLPAL_INPUT_TOUCH)
     uint32_t changed_mask;
     uint32_t started;
 
@@ -287,6 +416,9 @@ void pal_display_controls_set(uint32_t pressed_mask)
             display_metrics.control_last_microseconds;
     }
     ++display_metrics.control_update_count;
+#else
+    (void)pressed_mask;
+#endif
 }
 
 void pal_display_metrics_get(pal_display_metrics_t *metrics)

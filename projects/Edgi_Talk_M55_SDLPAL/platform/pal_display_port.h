@@ -7,7 +7,7 @@
 
 #include "pal_display_core.h"
 
-#define PAL_DISPLAY_STRIP_WIDTH 480u
+#define PAL_DISPLAY_STRIP_WIDTH 800u
 #define PAL_DISPLAY_STRIP_ROWS 16u
 
 typedef struct pal_display_metrics

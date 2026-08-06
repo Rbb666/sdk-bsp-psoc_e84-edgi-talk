@@ -84,16 +84,43 @@ test_display_core.exe: test_display_core.c $(PLATFORM)/pal_display_core.c \
 	$(HOST_CC) $(CFLAGS) $(INCLUDES) test_display_core.c \
 		$(PLATFORM)/pal_display_core.c $(PLATFORM)/pal_controls.c -o $@
 
-test_display_port: test_display_port.exe
-	.\test_display_port.exe
+test_display_port: test_display_port_touch.exe \
+		test_display_port_keyboard_portrait.exe \
+		test_display_port_keyboard_landscape.exe
+	.\test_display_port_touch.exe
+	.\test_display_port_keyboard_portrait.exe
+	.\test_display_port_keyboard_landscape.exe
 
-test_display_port.exe: test_display_port.c $(PLATFORM)/pal_display_port.c \
+test_display_port_touch.exe: test_display_port.c $(PLATFORM)/pal_display_port.c \
 		$(PLATFORM)/pal_display_port.h $(PLATFORM)/pal_display_core.c \
 		$(PLATFORM)/pal_display_core.h $(PLATFORM)/pal_controls.c \
 		$(PLATFORM)/pal_controls.h $(PLATFORM)/pal_lcd_api.h \
 		fakes_display/rtthread.h
 	$(HOST_CC) $(CFLAGS) $(DISPLAY_FAKE_INCLUDES) $(INCLUDES) \
-		-DBSP_LCD_VGLITE_INDEXED test_display_port.c \
+		-DBSP_LCD_VGLITE_INDEXED -DBSP_SDLPAL_INPUT_TOUCH \
+		test_display_port.c \
+		$(PLATFORM)/pal_display_port.c $(PLATFORM)/pal_display_core.c \
+		$(PLATFORM)/pal_controls.c -o $@
+
+test_display_port_keyboard_portrait.exe: test_display_port.c \
+		$(PLATFORM)/pal_display_port.c $(PLATFORM)/pal_display_port.h \
+		$(PLATFORM)/pal_display_core.c $(PLATFORM)/pal_display_core.h \
+		$(PLATFORM)/pal_controls.c $(PLATFORM)/pal_controls.h \
+		$(PLATFORM)/pal_lcd_api.h fakes_display/rtthread.h
+	$(HOST_CC) $(CFLAGS) $(DISPLAY_FAKE_INCLUDES) $(INCLUDES) \
+		-DBSP_LCD_VGLITE_INDEXED -DBSP_SDLPAL_INPUT_USB_KEYBOARD \
+		-DBSP_LCD_ROTATION_DEGREES=0 test_display_port.c \
+		$(PLATFORM)/pal_display_port.c $(PLATFORM)/pal_display_core.c \
+		$(PLATFORM)/pal_controls.c -o $@
+
+test_display_port_keyboard_landscape.exe: test_display_port.c \
+		$(PLATFORM)/pal_display_port.c $(PLATFORM)/pal_display_port.h \
+		$(PLATFORM)/pal_display_core.c $(PLATFORM)/pal_display_core.h \
+		$(PLATFORM)/pal_controls.c $(PLATFORM)/pal_controls.h \
+		$(PLATFORM)/pal_lcd_api.h fakes_display/rtthread.h
+	$(HOST_CC) $(CFLAGS) $(DISPLAY_FAKE_INCLUDES) $(INCLUDES) \
+		-DBSP_LCD_VGLITE_INDEXED -DBSP_SDLPAL_INPUT_USB_KEYBOARD \
+		-DBSP_LCD_ROTATION_DEGREES=90 test_display_port.c \
 		$(PLATFORM)/pal_display_port.c $(PLATFORM)/pal_display_core.c \
 		$(PLATFORM)/pal_controls.c -o $@
 

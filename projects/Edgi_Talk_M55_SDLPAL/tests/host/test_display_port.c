@@ -7,6 +7,11 @@
 #include "pal_lcd_api.h"
 #include "pal_display_port.h"
 
+#if defined(BSP_SDLPAL_INPUT_TOUCH) == \
+    defined(BSP_SDLPAL_INPUT_USB_KEYBOARD)
+#error "Test requires exactly one SDLPal input mode"
+#endif
+
 #define TEST_SOURCE_PITCH (PAL_GAME_WIDTH + 8u)
 #define MAX_AREA_CALLS 128u
 
@@ -17,6 +22,7 @@ typedef struct area_call
     uint32_t width;
     uint32_t height;
     rt_bool_t present;
+    bool all_zero;
 } area_call_t;
 
 static uint8_t frame[TEST_SOURCE_PITCH * PAL_GAME_HEIGHT];
@@ -74,14 +80,30 @@ void lcd_flush_rgb565_area(const void *pixels, uint32_t x, uint32_t y,
                            uint32_t width, uint32_t height,
                            uint32_t src_stride, rt_bool_t present)
 {
-    (void)pixels;
+    const uint16_t *source = (const uint16_t *)pixels;
+    uint32_t row;
+    bool all_zero = true;
+
     assert(src_stride == width);
+    for (row = 0u; row < height; ++row)
+    {
+        uint32_t column;
+
+        for (column = 0u; column < width; ++column)
+        {
+            if (source[row * src_stride + column] != 0u)
+            {
+                all_zero = false;
+            }
+        }
+    }
     assert(area_call_count < MAX_AREA_CALLS);
     area_call_log[area_call_count].x = x;
     area_call_log[area_call_count].y = y;
     area_call_log[area_call_count].width = width;
     area_call_log[area_call_count].height = height;
     area_call_log[area_call_count].present = present;
+    area_call_log[area_call_count].all_zero = all_zero;
     ++area_call_count;
     ++area_calls;
     if (y < PAL_GAME_VIEW_HEIGHT && width == PAL_PORTRAIT_WIDTH)
@@ -115,6 +137,8 @@ rt_bool_t lcd_blit_indexed8(const void *pixels,
     indexed_present = present;
     return indexed_result;
 }
+
+#if defined(BSP_SDLPAL_INPUT_TOUCH)
 
 static void assert_only_control_rects_were_flushed(uint32_t changed_mask)
 {
@@ -168,7 +192,7 @@ static void assert_only_control_rects_were_flushed(uint32_t changed_mask)
     }
 }
 
-static void test_indexed_routing_and_fallback(void)
+static void test_touch_routing_and_fallback(void)
 {
     pal_display_metrics_t metrics;
     uint16_t display_width;
@@ -249,9 +273,122 @@ static void test_indexed_routing_and_fallback(void)
     assert(metrics.control_max_microseconds == 1000u);
 }
 
+#else
+
+static void assert_black_bars_were_flushed(
+    uint16_t display_width, uint16_t display_height,
+    const pal_display_viewport_t *viewport)
+{
+    uint32_t viewport_right = (uint32_t)viewport->x + viewport->width;
+    uint32_t viewport_bottom = (uint32_t)viewport->y + viewport->height;
+    uint32_t flushed_pixels = 0u;
+    size_t i;
+
+    assert(area_call_count > 0u);
+    for (i = 0u; i < area_call_count; ++i)
+    {
+        const area_call_t *call = &area_call_log[i];
+        uint32_t call_right = call->x + call->width;
+        uint32_t call_bottom = call->y + call->height;
+
+        assert(call->all_zero);
+        assert(call_right <= viewport->x || call->x >= viewport_right ||
+               call_bottom <= viewport->y || call->y >= viewport_bottom);
+        flushed_pixels += call->width * call->height;
+        assert(call->present ==
+               (i + 1u == area_call_count ? RT_TRUE : RT_FALSE));
+    }
+    assert(flushed_pixels ==
+           (uint32_t)display_width * display_height -
+               (uint32_t)viewport->width * viewport->height);
+    assert(area_present_calls == 1u);
+}
+
+static void assert_cpu_viewport_was_flushed(
+    const pal_display_viewport_t *viewport)
+{
+    uint16_t rows = 0u;
+    size_t i;
+
+    assert(area_call_count > 0u);
+    for (i = 0u; i < area_call_count; ++i)
+    {
+        const area_call_t *call = &area_call_log[i];
+
+        assert(call->x == viewport->x);
+        assert(call->y == (uint32_t)viewport->y + rows);
+        assert(call->width == viewport->width);
+        assert(call->height <= PAL_DISPLAY_STRIP_ROWS);
+        rows = (uint16_t)(rows + call->height);
+        assert(call->present ==
+               (i + 1u == area_call_count ? RT_TRUE : RT_FALSE));
+    }
+    assert(rows == viewport->height);
+    assert(area_present_calls == 1u);
+}
+
+static void test_keyboard_routing_and_fallback(void)
+{
+    pal_display_metrics_t metrics;
+    pal_display_viewport_t viewport;
+    uint16_t display_width;
+    uint16_t display_height;
+
+    memset(frame, 0, sizeof(frame));
+    memset(colors, 0, sizeof(colors));
+    pal_display_port_get_dimensions(&display_width, &display_height);
+    assert(pal_display_viewport_get(display_width, display_height, false,
+                                    &viewport));
+
+    reset_calls();
+    indexed_result = RT_TRUE;
+    assert(pal_display_present_indexed(frame, TEST_SOURCE_PITCH, colors));
+    assert(indexed_calls == 1u);
+    assert(indexed_pixels == frame);
+    assert(indexed_width == PAL_GAME_WIDTH);
+    assert(indexed_height == PAL_GAME_HEIGHT);
+    assert(indexed_pitch == TEST_SOURCE_PITCH);
+    assert(indexed_x == viewport.x);
+    assert(indexed_y == viewport.y);
+    assert(indexed_dst_width == viewport.width);
+    assert(indexed_dst_height == viewport.height);
+    assert(indexed_present == RT_FALSE);
+    assert_black_bars_were_flushed(display_width, display_height,
+                                   &viewport);
+
+    reset_calls();
+    assert(pal_display_present_indexed(frame, TEST_SOURCE_PITCH, colors));
+    assert(indexed_calls == 1u);
+    assert(indexed_present == RT_TRUE);
+    assert(area_calls == 0u);
+
+    reset_calls();
+    pal_display_controls_set(PAL_CONTROL_A | PAL_CONTROL_RIGHT);
+    assert(area_calls == 0u);
+
+    reset_calls();
+    indexed_result = RT_FALSE;
+    assert(pal_display_present_indexed(frame, TEST_SOURCE_PITCH, colors));
+    assert(indexed_calls == 1u);
+    assert_cpu_viewport_was_flushed(&viewport);
+
+    pal_display_metrics_get(&metrics);
+    assert(metrics.frame_count == 3u);
+    assert(metrics.vglite_frame_count == 2u);
+    assert(metrics.fallback_frame_count == 1u);
+    assert(metrics.control_update_count == 0u);
+}
+
+#endif
+
 int main(void)
 {
-    test_indexed_routing_and_fallback();
-    puts("display_port: PASS");
+#if defined(BSP_SDLPAL_INPUT_TOUCH)
+    test_touch_routing_and_fallback();
+    puts("display_port_touch: PASS");
+#else
+    test_keyboard_routing_and_fallback();
+    puts("display_port_keyboard: PASS");
+#endif
     return 0;
 }
