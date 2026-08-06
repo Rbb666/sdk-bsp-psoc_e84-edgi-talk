@@ -510,6 +510,25 @@ SECTIONS
       "SDLPal static thread section contains unexpected storage."
     )
 
+    .sdlpal_audio (NOLOAD) :
+    {
+        . = ALIGN(8);
+        __sdlpal_audio_start__ = .;
+        KEEP(*(.sdlpal_audio))
+        KEEP(*(.sdlpal_audio.*))
+        . = ALIGN(8);
+        __sdlpal_audio_end__ = .;
+    } > m55_data_secondary
+
+    ASSERT(
+      SIZEOF(.sdlpal_audio) >= 0x2000,
+      "SDLPal audio section must contain the static 8 KiB thread stack."
+    )
+    ASSERT(
+      SIZEOF(.sdlpal_audio) <= 0xc000,
+      "SDLPal audio section exceeds the 48 KiB Secondary SRAM budget."
+    )
+
     /* A section for the heap memory */
     .heap(NOLOAD) :
     {

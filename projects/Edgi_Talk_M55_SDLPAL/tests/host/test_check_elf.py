@@ -19,7 +19,9 @@ class ElfValidationTests(unittest.TestCase):
             "__StackLimit": 0x2003F000,
             "__sdlpal_thread_start__": 0x26060028,
             "__sdlpal_thread_end__": 0x260660B8,
-            "__HeapBase": 0x260660B8,
+            "__sdlpal_audio_start__": 0x260660B8,
+            "__sdlpal_audio_end__": 0x2606E0B8,
+            "__HeapBase": 0x2606E0B8,
             "__cy_gpu_buf_start__": 0x26200000,
             "__lcd_indexed_staging_start__": 0x262F9C00,
             "__lcd_indexed_staging_end__": 0x26309600,
@@ -62,14 +64,12 @@ class ElfValidationTests(unittest.TestCase):
 
     def test_rejects_forbidden_and_overflowing_layouts(self):
         self.symbols["lv_timer_handler"] = 0x60801000
-        self.symbols["audio_thread_entry"] = 0x60802000
         self.symbols["__pal_framebuffer_end__"] = 0x20021000
         self.symbols["__cy_gpu_buf_end__"] = 0x26500001
 
         errors = check_elf.validate_layout(self.symbols, self.regions, 0)
         joined = "\n".join(errors)
         self.assertIn("LVGL", joined)
-        self.assertIn("audio", joined)
         self.assertIn("131072", joined)
         self.assertIn("GFX", joined)
 
@@ -93,6 +93,26 @@ class ElfValidationTests(unittest.TestCase):
         self.symbols["__HeapBase"] = 0x261C0001
         errors = check_elf.validate_layout(self.symbols, self.regions, 0)
         self.assertTrue(any("outside Secondary SRAM" in error for error in errors))
+
+    def test_rejects_invalid_audio_sram_layout(self):
+        self.symbols["__sdlpal_audio_end__"] = (
+            self.symbols["__sdlpal_audio_start__"] + 48 * 1024 + 1
+        )
+        self.symbols["__HeapBase"] = self.symbols["__sdlpal_audio_end__"]
+        errors = check_elf.validate_layout(self.symbols, self.regions, 0)
+        self.assertTrue(any("48 KiB" in error for error in errors))
+
+        self.symbols["__sdlpal_audio_start__"] = 0x261C0001
+        self.symbols["__sdlpal_audio_end__"] = 0x261C2001
+        self.symbols["__HeapBase"] = 0x261C2001
+        errors = check_elf.validate_layout(self.symbols, self.regions, 0)
+        self.assertTrue(any("audio storage is outside" in error for error in errors))
+
+        self.symbols["__sdlpal_audio_start__"] = 0x260660B8
+        self.symbols["__sdlpal_audio_end__"] = 0x260680B8
+        self.symbols["__HeapBase"] = 0x260670B8
+        errors = check_elf.validate_layout(self.symbols, self.regions, 0)
+        self.assertTrue(any("heap overlaps SDLPal audio" in error for error in errors))
 
     def test_rejects_invalid_indexed_staging_layout(self):
         del self.symbols["__lcd_indexed_staging_end__"]
@@ -195,6 +215,7 @@ gfx_mem 0x26200000 0x00300000
 Linker script and memory map
 .pal_framebuffer
                 0x20000000    0x20000
+.sdlpal_audio    0x260660b8    0x8000
 .cy_gpu_buf     0x26200000    0xf9c00
 """
         regions, sections = check_elf.parse_map(text)
@@ -202,6 +223,7 @@ Linker script and memory map
         self.assertEqual(
             sections["pal_framebuffer"], (0x20000000, 0x20000)
         )
+        self.assertEqual(sections["sdlpal_audio"], (0x260660B8, 0x8000))
 
 
 if __name__ == "__main__":

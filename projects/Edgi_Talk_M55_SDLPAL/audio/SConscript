@@ -1,0 +1,30 @@
+from building import *
+
+cwd = GetCurrentDir()
+
+src = Glob('*.c') + Glob('*.cpp')
+src += [
+    cwd + '/third_party/adplug/player.cpp',
+    cwd + '/third_party/adplug/rix.cpp',
+]
+
+path = [
+    cwd,
+    cwd + '/third_party',
+    cwd + '/third_party/adplug',
+    cwd + '/../platform',
+    cwd + '/../sdlpal/upstream',
+    cwd + '/../sdlpal/upstream/sdl_compat',
+    cwd + '/../sdlpal/upstream/esp32s3/native_engine_shim/include',
+]
+
+defines = [
+    ('PAL_NO_RUNTIME_HEAP', 1),
+    ('USE_RIX_EXTRA_INIT', 0),
+]
+
+group = DefineGroup(
+    'SDLPalAudio', src, depend=['BSP_USING_SDLPAL'], CPPPATH=path,
+    CPPDEFINES=defines, LOCAL_CXXFLAGS=' -fno-exceptions -fno-rtti')
+
+Return('group')

@@ -13,6 +13,7 @@ from typing import Dict, Iterable, List, Tuple
 
 PAL_FRAMEBUFFER_BYTES = 128 * 1024
 PAL_THREAD_STACK_BYTES = 24 * 1024
+PAL_AUDIO_MAX_BYTES = 48 * 1024
 M55_ITCM_RESERVED_BYTES = 64 * 1024
 LCD_INDEXED_STAGING_BYTES = 320 * 200
 PAL_LARGE_MIN_BYTES = 593362
@@ -53,7 +54,7 @@ def parse_map(text: str) -> Tuple[Dict[str, Tuple[int, int]], Dict[str, Tuple[in
         r"0x(?P<origin>[0-9a-fA-F]+)\s+0x(?P<length>[0-9a-fA-F]+)"
     )
     section_pattern = re.compile(
-        r"^\.(?P<name>pal_framebuffer|sdlpal_thread|cy_gpu_buf)\s+"
+        r"^\.(?P<name>pal_framebuffer|sdlpal_thread|sdlpal_audio|cy_gpu_buf)\s+"
         r"0x(?P<origin>[0-9a-fA-F]+)\s+0x(?P<length>[0-9a-fA-F]+)"
     )
     section_values_pattern = re.compile(
@@ -70,7 +71,12 @@ def parse_map(text: str) -> Tuple[Dict[str, Tuple[int, int]], Dict[str, Tuple[in
         if line == "Linker script and memory map":
             in_memory_configuration = False
             continue
-        if line in (".pal_framebuffer", ".sdlpal_thread", ".cy_gpu_buf"):
+        if line in (
+            ".pal_framebuffer",
+            ".sdlpal_thread",
+            ".sdlpal_audio",
+            ".cy_gpu_buf",
+        ):
             pending_section = line[1:]
             continue
         if pending_section is not None:
@@ -109,13 +115,6 @@ def _forbidden_symbol_errors(names: Iterable[str]) -> List[str]:
         lower = name.lower()
         if re.search(r"(^|_)lv_", lower) or lower == "lvgl_thread_init":
             errors.append(f"LVGL symbol linked: {name}")
-        if (
-            re.search(r"(^|_)audio_(thread|device)(_|$)", lower)
-            or lower.startswith("rt_hw_audio")
-            or lower.startswith("drv_audio")
-            or lower.startswith("es8388")
-        ):
-            errors.append(f"audio thread/device symbol linked: {name}")
     return errors
 
 
@@ -132,6 +131,8 @@ def validate_layout(
         "__StackLimit",
         "__sdlpal_thread_start__",
         "__sdlpal_thread_end__",
+        "__sdlpal_audio_start__",
+        "__sdlpal_audio_end__",
         "__HeapBase",
         "__cy_gpu_buf_start__",
         "__cy_gpu_buf_end__",
@@ -315,16 +316,28 @@ def validate_layout(
         for name in (
             "__sdlpal_thread_start__",
             "__sdlpal_thread_end__",
+            "__sdlpal_audio_start__",
+            "__sdlpal_audio_end__",
             "__HeapBase",
         )
     ):
         origin, length = secondary
         thread_start = symbols["__sdlpal_thread_start__"]
         thread_end = symbols["__sdlpal_thread_end__"]
+        audio_start = symbols["__sdlpal_audio_start__"]
+        audio_end = symbols["__sdlpal_audio_end__"]
         if thread_start < origin or thread_end > origin + length:
             errors.append("SDLPal static thread storage is outside Secondary SRAM")
         if thread_end - thread_start < PAL_THREAD_STACK_BYTES:
             errors.append("SDLPal static thread section is smaller than 24 KiB")
+        if audio_start < origin or audio_end > origin + length:
+            errors.append("SDLPal audio storage is outside Secondary SRAM")
+        if audio_start < thread_end or audio_end < audio_start:
+            errors.append("SDLPal audio storage overlaps static thread storage")
+        if audio_end - audio_start > PAL_AUDIO_MAX_BYTES:
+            errors.append("SDLPal audio storage exceeds 48 KiB")
+        if symbols["__HeapBase"] < audio_end:
+            errors.append("primary heap overlaps SDLPal audio storage")
         if symbols["__HeapBase"] < thread_end:
             errors.append("primary heap overlaps SDLPal static thread storage")
 
@@ -377,6 +390,11 @@ def main() -> int:
         errors.append("map is missing .sdlpal_thread")
     elif thread_section[1] < PAL_THREAD_STACK_BYTES:
         errors.append("map .sdlpal_thread is smaller than 24 KiB")
+    audio_section = sections.get("sdlpal_audio")
+    if audio_section is None:
+        errors.append("map is missing .sdlpal_audio")
+    elif audio_section[1] > PAL_AUDIO_MAX_BYTES:
+        errors.append("map .sdlpal_audio exceeds 48 KiB")
 
     if errors:
         for error in errors:
@@ -401,6 +419,9 @@ def main() -> int:
     thread_bytes = (
         symbols["__sdlpal_thread_end__"] - symbols["__sdlpal_thread_start__"]
     )
+    audio_bytes = (
+        symbols["__sdlpal_audio_end__"] - symbols["__sdlpal_audio_start__"]
+    )
     dtcm_headroom = symbols["__StackLimit"] - symbols["__bss_end__"]
     itcm_bytes = (
         symbols["__sdlpal_itcm_end__"] - symbols["__sdlpal_itcm_start__"]
@@ -413,7 +434,7 @@ def main() -> int:
         f"PASS rotation={args.rotation} framebuffer={PAL_FRAMEBUFFER_BYTES} "
         f"gfx={gfx_bytes} indexed={indexed_bytes} large={large_bytes} "
         f"save={save_bytes} resource={resource_bytes} "
-        f"thread={thread_bytes} "
+        f"thread={thread_bytes} audio={audio_bytes} "
         f"itcm={itcm_bytes} itcm_reserved={itcm_reserved} "
         f"dtcm_headroom={dtcm_headroom}"
     )

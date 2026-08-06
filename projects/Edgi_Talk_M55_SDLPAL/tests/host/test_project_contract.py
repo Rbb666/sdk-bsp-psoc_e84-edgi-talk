@@ -301,6 +301,34 @@ class ProjectContractTest(unittest.TestCase):
         self.assertIn("TX_FIFO_SIZE", i2s_source)
         self.assertIn("(1024)", i2s_source)
 
+    def test_audio_port_uses_bounded_static_secondary_sram(self):
+        port_path = ROOT / "audio" / "pal_audio_port.c"
+        linker = (ROOT / "board" / "linker_scripts" / "link.ld").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertTrue(port_path.is_file())
+        port = port_path.read_text(encoding="utf-8")
+        self.assertIn("PAL_AUDIO_BLOCK_SAMPLES 256u", port)
+        self.assertIn("PAL_AUDIO_STACK_BYTES (8u * 1024u)", port)
+        self.assertIn('section(".sdlpal_audio")', port)
+        self.assertIn("static struct rt_thread", port)
+        self.assertIn("rt_thread_init(", port)
+        self.assertNotIn("rt_thread_create(", port)
+        self.assertIn('rt_device_find("sound0")', port)
+        self.assertIn("AUDIO_CTL_CONFIGURE", port)
+        self.assertIn("AUDIO_TYPE_OUTPUT", port)
+        self.assertIn("AUDIO_DSP_PARAM", port)
+
+        self.assertIn(".sdlpal_audio (NOLOAD)", linker)
+        self.assertIn("__sdlpal_audio_start__", linker)
+        self.assertIn("__sdlpal_audio_end__", linker)
+        self.assertIn("SIZEOF(.sdlpal_audio) <= 0xc000", linker)
+        self.assertRegex(
+            linker,
+            r"\.sdlpal_audio\s*\(NOLOAD\)[\s\S]*?}\s*>\s*m55_data_secondary",
+        )
+
     def test_indexed_framebuffers_are_fixed_in_dtcm(self):
         memory_header = (ROOT / "platform" / "pal_memory.h").read_text(
             encoding="utf-8"
