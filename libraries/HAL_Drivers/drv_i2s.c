@@ -35,7 +35,11 @@ bool first_frame = true;
 bool i2s_deinit_flag = false;
 bool i2s_skip_frame = false;
 
+#if defined(BSP_USING_SDLPAL)
+#define TX_FIFO_SIZE         (1024)
+#else
 #define TX_FIFO_SIZE         (4096)
+#endif
 
 static volatile bool i2s_data_ready_flag = false;
 

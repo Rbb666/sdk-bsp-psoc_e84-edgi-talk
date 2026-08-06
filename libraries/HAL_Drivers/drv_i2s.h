@@ -95,7 +95,11 @@ extern "C" {
 #if SAMPLING_RATE == SAMPLING_RATE_16kHz
 /* Number of samples in an audio frame */
 #define FRAME_SIZE                                      (32u)
+#if defined(BSP_USING_SDLPAL)
+#define PLAYBACK_DATA_FRAME_SIZE                        (512)
+#else
 #define PLAYBACK_DATA_FRAME_SIZE                        (2048)
+#endif
 #elif SAMPLING_RATE == SAMPLING_RATE_48kHz
 /* Number of samples in an audio frame */
 #define FRAME_SIZE                                      (480u)

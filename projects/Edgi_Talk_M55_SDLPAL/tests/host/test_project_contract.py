@@ -276,12 +276,16 @@ class ProjectContractTest(unittest.TestCase):
         self.assertIn("select BSP_USING_AUDIO_PLAY", project_kconfig)
         for setting in (
             "CONFIG_RT_USING_AUDIO=y",
+            "CONFIG_RT_AUDIO_REPLAY_MP_BLOCK_SIZE=512",
+            "CONFIG_RT_AUDIO_REPLAY_MP_BLOCK_COUNT=2",
             "CONFIG_BSP_USING_AUDIO=y",
             "CONFIG_BSP_USING_AUDIO_PLAY=y",
         ):
             self.assertIn(setting, config)
         for define in (
             "#define RT_USING_AUDIO",
+            "#define RT_AUDIO_REPLAY_MP_BLOCK_SIZE 512",
+            "#define RT_AUDIO_REPLAY_MP_BLOCK_COUNT 2",
             "#define BSP_USING_AUDIO",
             "#define BSP_USING_AUDIO_PLAY",
         ):

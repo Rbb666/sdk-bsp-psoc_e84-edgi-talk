@@ -30,6 +30,8 @@ config PLATFORM_DIR
 
 config BSP_USING_SDLPAL
     bool
+    select BSP_USING_AUDIO
+    select BSP_USING_AUDIO_PLAY
     default y
 
 config BSP_LCD_VGLITE_INDEXED
