@@ -233,6 +233,9 @@ class ProjectContractTest(unittest.TestCase):
         bridge = (ROOT / "platform" / "pal_engine_bridge.c").read_text(
             encoding="utf-8"
         )
+        keyboard_port = (
+            ROOT / "platform" / "pal_usb_keyboard_port.c"
+        ).read_text(encoding="utf-8")
         project_kconfig = (ROOT / "Kconfig").read_text(encoding="utf-8")
         cherry_kconfig = (
             BSP_ROOT / "libraries" / "components" / "CherryUSB-1.6.0" / "Kconfig"
@@ -320,6 +323,7 @@ class ProjectContractTest(unittest.TestCase):
         self.assertIn("BSP_SDLPAL_INPUT_USB_KEYBOARD", platform_build)
         self.assertIn("Glob('pal_usb_keyboard_*.c')", platform_build)
         self.assertIn("Glob('pal_touch_*.c')", platform_build)
+        self.assertNotIn("[PAL KEY]", keyboard_port)
         self.assertIn("config USBHOST_MAX_INTF_ALTSETTINGS", cherry_kconfig)
         self.assertIn("#ifndef CONFIG_USBHOST_MAX_INTF_ALTSETTINGS", usb_config)
 
@@ -955,7 +959,6 @@ class ProjectContractTest(unittest.TestCase):
             "--input-mode keyboard",
             "[PAL USB] host ready",
             "[PAL USB] keyboard connected",
-            "[PAL KEY] DOWN",
             "Enter/A",
             "Escape/B",
             "PageUp/PageDown",
@@ -967,6 +970,7 @@ class ProjectContractTest(unittest.TestCase):
             "必须保持为 `12`",
         ):
             self.assertIn(item, project_readme)
+        self.assertNotIn("[PAL KEY]", project_readme)
 
         self.assertTrue((ROOT / "tools" / "check_elf.py").is_file())
         self.assertTrue((ROOT / "tools" / "check_stack_usage.py").is_file())

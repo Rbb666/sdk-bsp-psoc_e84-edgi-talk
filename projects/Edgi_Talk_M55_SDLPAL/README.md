@@ -127,20 +127,18 @@ Boot Protocol 键盘的 8 字节输入报告。将键盘直接连接到开发板
 ```text
 [PAL USB] host ready: bus=0 base=0x...
 [PAL USB] keyboard connected: vid=0x.... pid=0x.... ep=0x.. mps=...
-[PAL KEY] DOWN usage=0x52 key=UP action=PAL_CONTROL_UP
-[PAL KEY] UP   usage=0x52 key=UP action=PAL_CONTROL_UP
 ```
 
 方向键映射为 `PAL_CONTROL_UP/DOWN/LEFT/RIGHT`，Enter 映射为
 `PAL_CONTROL_A`，Escape 映射为 `PAL_CONTROL_B`，PageUp/PageDown 映射为
-`PAL_CONTROL_PGUP/PGDN`。其他 Boot 键也打印 usage、键名和按下/松开状态，
-但 action 显示为 `NONE`。不提供 Boot 键盘接口、包长小于 8 字节或只提供
-厂商自定义 NKRO 接口的设备会打印 `HID ignored`，不会占用当前键盘通道。
+`PAL_CONTROL_PGUP/PGDN`。按键按下和松开不输出逐键调试日志。不提供 Boot 键盘
+接口、包长小于 8 字节或只提供厂商自定义 NKRO 接口的设备会打印 `HID ignored`，
+不会占用当前键盘通道。
 
 游戏操作对应关系为：方向键移动或选择，Enter/A 确认，Escape/B 取消，
 PageUp/PageDown 翻页。支持方向键与动作键同时按下；按键状态由 USB worker
-原子发布，SDLPal 输入桥统一生成游戏事件。每次按键只打印一次 DOWN 和一次 UP；
-断开键盘时立即释放所有游戏控制状态并打印 `[PAL USB] keyboard disconnected`，
+原子发布，SDLPal 输入桥统一生成游戏事件。断开键盘时立即释放所有游戏控制状态
+并打印 `[PAL USB] keyboard disconnected`，
 避免粘键。
 
 仓库中的 DWC2 Host 驱动为按 CherryUSB 默认配置预编译的静态库，因此

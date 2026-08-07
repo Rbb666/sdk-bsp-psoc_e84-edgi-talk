@@ -1,6 +1,10 @@
 #ifndef RT_CONFIG_H__
 #define RT_CONFIG_H__
 
+#define BSP_USING_SDLPAL
+#define BSP_SDLPAL_INPUT_USB_KEYBOARD
+#define BSP_LCD_VGLITE_INDEXED
+
 /* RT-Thread Kernel */
 
 #define RT_NAME_MAX 8
@@ -257,6 +261,12 @@
 /* Micrium: Micrium software products porting for RT-Thread */
 
 /* end of Micrium: Micrium software products porting for RT-Thread */
+#define CONFIG_USBHOST_PSC_PRIO 0
+#define CONFIG_USBHOST_PSC_STACKSIZE 4096
+#define CONFIG_USBHOST_REQUEST_BUFFER_LEN 512
+#define CONFIG_USBHOST_CONTROL_TRANSFER_TIMEOUT 500
+#define CONFIG_USBHOST_SERIAL_RX_SIZE 2048
+#define RT_LWIP_PBUF_POOL_BUFSIZE 1600
 /* end of system packages */
 
 /* peripheral libraries and drivers */
@@ -397,14 +407,11 @@
 #define BSP_USING_AUDIO
 #define BSP_USING_AUDIO_PLAY
 #define BSP_USING_LCD
-#define BSP_USING_SDLPAL
-#define BSP_SDLPAL_INPUT_USB_KEYBOARD
 #define COMPONENT_MTB_DISPLAY_tl043wvv02
 #define M55_BSP_LCD_ROTATION_90
 #define BSP_LCD_ROTATION_90
 #define BSP_LCD_ROTATION_DEGREES 90
 #define BSP_LCD_ROTATION_BACKEND_VGLITE
-#define BSP_LCD_VGLITE_INDEXED
 #define BSP_LCD_USE_AXIDMAC_AREA_COPY
 #define BSP_LCD_AXIDMAC_AREA_COPY_MIN_BYTES 8192
 /* end of Onboard Peripheral Drivers */
@@ -433,12 +440,14 @@
 
 /* end of Board extended module Drivers */
 /* end of Hardware Drivers Config */
-
 #define RT_USING_CHERRYUSB
 #define RT_CHERRYUSB_HOST
 #define RT_CHERRYUSB_HOST_DWC2_INFINEON
 #define RT_CHERRYUSB_HOST_HID
-#define CONFIG_USBHOST_MAX_INTF_ALTSETTINGS 12
-#define CONFIG_USBHOST_SERIAL_RX_SIZE 2048
+
+/* Select USB host template, please select class driver first */
+
+#define RT_TEST_USBH_HID 0
+/* end of Select USB host template, please select class driver first */
 
 #endif

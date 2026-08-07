@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <rtconfig.h>
 
 bool pal_input_port_init(void);
 uint32_t pal_input_port_poll(void);

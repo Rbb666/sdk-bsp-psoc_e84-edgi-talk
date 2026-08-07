@@ -299,7 +299,7 @@ static void test_host_and_hid_lifecycle(void)
     assert(submit_calls == 3u);
 }
 
-static void test_worker_logs_queued_messages(void)
+static void test_worker_updates_controls_without_key_logs(void)
 {
     static const uint32_t expected_masks[] = {
         0u,
@@ -321,13 +321,8 @@ static void test_worker_logs_queued_messages(void)
     replay_expected_masks = NULL;
     replay_expected_count = 0u;
 
-    assert(strstr(log_output,
-                  "[PAL KEY] DOWN usage=0x52 key=UP action=PAL_CONTROL_UP") !=
-           NULL);
+    assert(strstr(log_output, "[PAL KEY]") == NULL);
     assert(strstr(log_output, "[PAL USB] transfer error: -12") != NULL);
-    assert(strstr(log_output,
-                  "[PAL KEY] UP   usage=0x52 key=UP action=PAL_CONTROL_UP") !=
-           NULL);
     assert(strstr(log_output, "[PAL USB] keyboard disconnected") != NULL);
     assert(pal_usb_keyboard_controls_get() == 0u);
 }
@@ -375,7 +370,7 @@ static void test_worker_updates_control_snapshot(void)
 int main(void)
 {
     test_host_and_hid_lifecycle();
-    test_worker_logs_queued_messages();
+    test_worker_updates_controls_without_key_logs();
     test_worker_updates_control_snapshot();
     puts("usb_keyboard_port: PASS");
     return 0;

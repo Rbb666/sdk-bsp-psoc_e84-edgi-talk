@@ -222,12 +222,6 @@ static void handle_key_event(void *context,
         }
         rt_hw_interrupt_enable(level);
     }
-
-    rt_kprintf("[PAL KEY] %s usage=0x%02x key=%s action=%s\n",
-               event->pressed ? "DOWN" : "UP  ",
-               (unsigned int)event->usage,
-               pal_usb_keyboard_usage_name(event->usage),
-               pal_usb_keyboard_control_name(control));
 }
 
 uint32_t pal_usb_keyboard_controls_get(void)
