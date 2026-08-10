@@ -158,8 +158,8 @@ test_sdl_shim: test_sdl_shim.exe
 	.\test_sdl_shim.exe
 
 test_sdl_shim.exe: test_sdl_shim.c $(SDL_SHIM)/sdl_shim.c \
-		$(SDL_SHIM)/include/SDL.h
-	$(HOST_CC) $(CFLAGS) $(SDL_INCLUDES) \
+		$(SDL_SHIM)/include/SDL.h fakes/rtthread.h
+	$(HOST_CC) $(CFLAGS) $(FAKE_INCLUDES) $(SDL_INCLUDES) \
 		-DPAL_ENGINE_BRIDGE_REQUIRE_TARGET_HOOKS=0 \
 		-DPAL_SDL_SHIM_EXTERNAL_SURFACES_ONLY=1 \
 		-DPAL_SDL_SHIM_DYNAMIC_SURFACES=1 \
@@ -173,8 +173,8 @@ test_sdl_shim_surface_fallback.exe: test_sdl_shim_surface_fallback.c \
 		$(PLATFORM)/pal_surface_storage.c \
 		$(PLATFORM)/pal_surface_storage.h \
 		$(PLATFORM)/pal_memory_policy.c \
-		$(PLATFORM)/pal_memory_policy.h
-	$(HOST_CC) $(CFLAGS) $(INCLUDES) $(SDL_INCLUDES) \
+		$(PLATFORM)/pal_memory_policy.h fakes/rtthread.h
+	$(HOST_CC) $(CFLAGS) $(FAKE_INCLUDES) $(INCLUDES) $(SDL_INCLUDES) \
 		-DPAL_ENGINE_BRIDGE_REQUIRE_TARGET_HOOKS=0 \
 		-DPAL_SDL_SHIM_EXTERNAL_SURFACES_ONLY=1 \
 		-DPAL_SDL_SHIM_DYNAMIC_SURFACES=1 \
