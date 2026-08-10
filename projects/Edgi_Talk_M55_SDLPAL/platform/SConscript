@@ -6,7 +6,7 @@ path = [
     cwd,
     cwd + '/../sdlpal/upstream',
     cwd + '/../sdlpal/upstream/sdl_compat',
-    cwd + '/../sdlpal/upstream/esp32s3/native_engine_shim/include',
+    cwd + '/../sdlpal/port/rtthread/include',
     cwd + '/../../../libraries/HAL_Drivers',
 ]
 

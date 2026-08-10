@@ -2,6 +2,7 @@ from building import *
 
 cwd = GetCurrentDir()
 upstream = cwd + '/upstream'
+rtthread_port = cwd + '/port/rtthread'
 
 core_sources = [
     'battle.c',
@@ -37,13 +38,13 @@ core_sources = [
 src = [upstream + '/' + name for name in core_sources]
 src += [
     upstream + '/sdl_compat/sdl_compat.c',
-    upstream + '/esp32s3/native_engine_shim/sdl_shim.c',
+    rtthread_port + '/sdl_shim.c',
 ]
 
 path = [
     upstream,
     upstream + '/sdl_compat',
-    upstream + '/esp32s3/native_engine_shim/include',
+    rtthread_port + '/include',
     cwd + '/../platform',
 ]
 

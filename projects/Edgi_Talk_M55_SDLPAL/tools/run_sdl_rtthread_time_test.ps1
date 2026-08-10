@@ -7,7 +7,7 @@ Set-StrictMode -Version Latest
 
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $testRoot = Join-Path $PSScriptRoot "host-tests\sdl_rtthread_time"
-$shimRoot = Join-Path $projectRoot "sdlpal\upstream\esp32s3\native_engine_shim"
+$shimRoot = Join-Path $projectRoot "sdlpal\port\rtthread"
 $output = Join-Path ([IO.Path]::GetTempPath()) ("sdlpal-rtthread-time-{0}.exe" -f $PID)
 
 if (-not (Test-Path -LiteralPath $Compiler)) {
