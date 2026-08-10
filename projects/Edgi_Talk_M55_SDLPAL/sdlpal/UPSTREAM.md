@@ -7,11 +7,12 @@
 - License: GPL-3.0; see `upstream/LICENSE`
 
 The target builds an explicit source allowlist: the game core, compatibility
-layer, headless SDL shim, and a PSoC-owned audio contract. ESP32 startup,
-display, touch, storage, packed-resource, and memory-profile implementations
-are not included. Three `embedded` headers are retained because the extreme
-branch includes their declarations from otherwise portable core files; none of
-their memory-level or packed-resource modes is enabled.
+layer, an RT-Thread headless SDL port, and a PSoC-owned audio contract.
+Startup, display, touch, storage, packed-resource, and platform-specific
+memory-profile implementations from other targets are not included. Three
+`embedded` headers are retained because the source branch includes their
+declarations from otherwise portable core files; none of their memory-level
+or packed-resource modes is enabled.
 
 The project-private `audio/third_party` tree imports the following fixed-memory
 RIX/OPL2 files from the same locked commit:
@@ -30,11 +31,12 @@ and place mutable OPL state in `.sdlpal_audio` Secondary SRAM.
 
 Local changes to the snapshot are intentionally small:
 
-1. `sdl_shim.c` omits unused static texture storage and supports target-owned
-   dynamic surfaces without restoring the upstream multi-megabyte static pixel
-   pools. Main and backup screens remain external fixed buffers; temporary UI
-   and battle surfaces prefer the on-chip RT-Thread heap, then use the fixed
-   GFX SRAM surface pool and HyperRAM fallback when SRAM is fragmented, and are
+1. `sdlpal/port/rtthread/sdl_shim.c` is the project-maintained RT-Thread shim.
+   It omits unused static texture storage and supports target-owned dynamic
+   surfaces without restoring the upstream multi-megabyte static pixel pools.
+   Main and backup screens remain external fixed buffers; temporary UI and
+   battle surfaces prefer the on-chip RT-Thread heap, then use the fixed GFX
+   SRAM surface pool and HyperRAM fallback when SRAM is fragmented, and are
    freed through the allocator that supplied their pixels.
 2. The shim declares two SDL2 texture helpers used only by the disabled touch
    overlay path; no renderer texture pool is allocated for this target.

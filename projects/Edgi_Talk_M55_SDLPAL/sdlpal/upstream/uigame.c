@@ -189,7 +189,6 @@ PAL_BuyMenuNativeRead(
 
 #if defined(PAL_NO_RUNTIME_HEAP) || defined(PAL_NO_RUNTIME_DECOMPRESS)
 #if defined(PAL_EXTREME_TWO_SCREENS)
-#include "esp32s3/main/cardputer_extreme_memory.h"
 #define PAL_UIGAME_PSRAM __attribute__((section(".bss.pal_sram"), aligned(8)))
 #define pal_psram_uigame_background pal_sram_aux_framebuffer
 #else

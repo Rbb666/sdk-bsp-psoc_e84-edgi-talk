@@ -26,21 +26,12 @@
  * Resource ownership is selected only by MEM_LEVEL1 or MEM_LEVEL2.  Keep
  * board wiring, presentation, and storage topology as orthogonal features.
  */
-#if defined(PAL_CARDPUTER_EXTREME)
-#error "PAL_CARDPUTER_EXTREME is retired; select MEM_LEVEL1 or MEM_LEVEL2"
-#endif
-
-#if defined(PAL_PAGED_EVENT_STATE)
-#error "PAL_PAGED_EVENT_STATE is derived; do not define it in a build profile"
-#endif
-
-/*
- * The SRAM-only profile and the current SD-only Level2 profile persist the
- * complete event/scene state through the bounded TF pager.  CoreS3 SE remains
- * a Level2 resident-state target.
- */
 #if defined(MEM_LEVEL1) || defined(PAL_STORAGE_SD_ONLY)
 #define PAL_PAGED_EVENT_STATE 1
+#endif
+
+#if defined(PAL_PAGED_EVENT_STATE) || defined(PAL_EXTREME_TWO_SCREENS)
+#error "Paged and two-screen extreme profiles are unsupported by the RT-Thread port"
 #endif
 
 #ifndef PAL_LOCALIZATION_EXT

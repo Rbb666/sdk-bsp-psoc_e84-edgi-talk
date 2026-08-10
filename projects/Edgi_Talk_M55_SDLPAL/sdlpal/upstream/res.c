@@ -24,9 +24,6 @@
 #if defined(PAL_PSOC_DIRECT_INDEXED)
 #include "pal_memory.h"
 #endif
-#if defined(ESP_PLATFORM) && defined(MEM_LEVEL2)
-#include <esp_attr.h>
-#endif
 
 #if defined(PAL_EXTREME_TWO_SCREENS)
 #include "pal_engine_runtime_metrics.h"
@@ -78,9 +75,7 @@ typedef struct tagRESOURCES
 static LPRESOURCES gpResources = NULL;
 
 #if defined(PAL_NO_RUNTIME_HEAP) || defined(PAL_NO_RUNTIME_DECOMPRESS)
-#if defined(ESP_PLATFORM) && defined(MEM_LEVEL2)
-#define PAL_RES_PSRAM EXT_RAM_BSS_ATTR __attribute__((aligned(4)))
-#elif defined(__GNUC__) && defined(MEM_LEVEL1)
+#if defined(__GNUC__) && defined(MEM_LEVEL1)
 #define PAL_RES_PSRAM __attribute__((section(".bss.pal_sram"), aligned(4)))
 #elif defined(__GNUC__)
 #define PAL_RES_PSRAM __attribute__((section(".bss.pal_psram"), aligned(4)))

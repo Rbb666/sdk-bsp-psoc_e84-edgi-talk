@@ -25,9 +25,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#if defined(ESP_PLATFORM) && defined(MEM_LEVEL2)
-#include <esp_attr.h>
-#endif
 
 /* Tagged target saves must never be mistaken for a legacy DOS/WIN save. */
 #ifndef PAL_EXTREME_SAVE_MAGIC
@@ -46,9 +43,7 @@ GLOBALVARS * const  gpGlobals = &_gGlobals;
 CONFIGURATION gConfig;
 
 #ifdef PAL_NO_RUNTIME_HEAP
-#if defined(ESP_PLATFORM) && defined(MEM_LEVEL2)
-#define PAL_GLOBAL_PSRAM EXT_RAM_BSS_ATTR __attribute__((aligned(4)))
-#elif defined(__GNUC__) && defined(MEM_LEVEL1)
+#if defined(__GNUC__) && defined(MEM_LEVEL1)
 #define PAL_GLOBAL_PSRAM __attribute__((section(".bss.pal_sram"), aligned(4)))
 #elif defined(__GNUC__)
 #define PAL_GLOBAL_PSRAM __attribute__((section(".bss.pal_psram"), aligned(4)))
@@ -906,10 +901,6 @@ static uint8_t pal_psram_savegame_static[
 ] PAL_GLOBAL_PSRAM;
 #define PAL_SAVEGAME_STATIC pal_psram_savegame_static
 #endif
-#endif
-
-#if defined(PAL_PAGED_EVENT_STATE)
-#include "esp32s3/engine_bridge/pal_engine_extreme_save.inc"
 #endif
 
 WORD

@@ -24,11 +24,6 @@
 #include "palcfg.h"
 #include "embedded/pal_fullscreen_stretch.h"
 
-#if defined(PAL_EXTREME_TWO_SCREENS) && defined(PAL_NO_RUNTIME_DECOMPRESS)
-#include "esp32s3/engine_bridge/pal_engine_pack_provider.h"
-#include "esp32s3/main/pal_target_memory.h"
-#endif
-
 #ifdef PAL_NO_RUNTIME_DECOMPRESS
 #ifndef _WIN32
 #include <fcntl.h>
