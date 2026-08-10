@@ -1,6 +1,17 @@
 #include "SDL.h"
 
+#include <rtthread.h>
+
 #include <ctype.h>
+#include <limits.h>
+
+#define PAL_SDL_DELAY_MAX_TICKS ((rt_tick_t)(RT_TICK_MAX / 2u - 1u))
+#define PAL_SDL_DELAY_MAX_MS_BY_TICK \
+    (((uint64_t)PAL_SDL_DELAY_MAX_TICKS * 1000u) / RT_TICK_PER_SECOND)
+#define PAL_SDL_DELAY_CHUNK_MS \
+    ((Uint32)(PAL_SDL_DELAY_MAX_MS_BY_TICK < (uint64_t)INT_MAX \
+                  ? PAL_SDL_DELAY_MAX_MS_BY_TICK \
+                  : (uint64_t)INT_MAX))
 
 #if defined(PAL_PSOC_DIRECT_INDEXED)
 #include "pal_surface_storage.h"
@@ -79,21 +90,14 @@ static Uint8 shim_keyboard[SHIM_KEYBOARD_KEYS];
 static SDL_Event shim_events[SHIM_EVENT_QUEUE];
 static unsigned shim_event_head;
 static unsigned shim_event_tail;
-#if !PAL_ENGINE_BRIDGE_REQUIRE_TARGET_HOOKS
-static Uint32 shim_ticks;
-#endif
 static char shim_error[160];
 
 #if PAL_ENGINE_BRIDGE_REQUIRE_TARGET_HOOKS
 void PalEngineBridge_RenderPresent(const void *pixels, int pitch, int w, int h);
 int PalEngineBridge_PollEvent(SDL_Event *event);
-Uint32 PalEngineBridge_GetTicks(void);
-void PalEngineBridge_Delay(Uint32 ms);
 #else
 void PalEngineBridge_RenderPresent(const void *pixels, int pitch, int w, int h) __attribute__((weak));
 int PalEngineBridge_PollEvent(SDL_Event *event) __attribute__((weak));
-Uint32 PalEngineBridge_GetTicks(void) __attribute__((weak));
-void PalEngineBridge_Delay(Uint32 ms) __attribute__((weak));
 #endif
 
 static void apply_keyboard_event(const SDL_Event *event)
@@ -302,37 +306,28 @@ void SDL_SetError(const char *fmt, ...)
 
 Uint32 SDL_GetTicks(void)
 {
-#if PAL_ENGINE_BRIDGE_REQUIRE_TARGET_HOOKS
-    return PalEngineBridge_GetTicks();
-#else
-    if (PalEngineBridge_GetTicks != NULL) {
-        return PalEngineBridge_GetTicks();
-    }
-    return shim_ticks;
-#endif
+    return (Uint32)rt_tick_get_millisecond();
 }
 
-void SDL_Delay(Uint32 ms)
+void SDL_Delay(Uint32 milliseconds)
 {
-#if PAL_ENGINE_BRIDGE_REQUIRE_TARGET_HOOKS
-    PalEngineBridge_Delay(ms);
-#else
-    if (PalEngineBridge_Delay != NULL) {
-        PalEngineBridge_Delay(ms);
-        return;
+    while (milliseconds > PAL_SDL_DELAY_CHUNK_MS) {
+        (void)rt_thread_mdelay((rt_int32_t)PAL_SDL_DELAY_CHUNK_MS);
+        milliseconds -= PAL_SDL_DELAY_CHUNK_MS;
     }
-    shim_ticks += ms;
-#endif
+    if (milliseconds != 0u) {
+        (void)rt_thread_mdelay((rt_int32_t)milliseconds);
+    }
 }
 
 Uint64 SDL_GetPerformanceCounter(void)
 {
-    return SDL_GetTicks();
+    return (Uint64)rt_tick_get();
 }
 
 Uint64 SDL_GetPerformanceFrequency(void)
 {
-    return 1000;
+    return (Uint64)RT_TICK_PER_SECOND;
 }
 
 int SDL_PollEvent(SDL_Event *event)

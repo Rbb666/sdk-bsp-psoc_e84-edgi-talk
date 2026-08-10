@@ -2,7 +2,6 @@
 
 #include "pal_engine_bridge.h"
 
-#include <limits.h>
 #include <string.h>
 
 #include "pal_controls.h"
@@ -135,20 +134,6 @@ int PalEngineBridge_PollEvent(SDL_Event *event)
     current_mask = pal_input_port_poll();
     update_control_events(current_mask);
     return pop_pending_event(event);
-}
-
-Uint32 PalEngineBridge_GetTicks(void)
-{
-    return (Uint32)rt_tick_get_millisecond();
-}
-
-void PalEngineBridge_Delay(Uint32 milliseconds)
-{
-    if (milliseconds != 0u) {
-        rt_thread_mdelay((rt_int32_t)(milliseconds > (Uint32)INT_MAX
-                                          ? INT_MAX
-                                          : milliseconds));
-    }
 }
 
 void pal_engine_fatal(const char *message)
