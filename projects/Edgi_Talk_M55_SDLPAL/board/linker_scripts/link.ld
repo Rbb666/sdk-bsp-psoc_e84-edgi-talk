@@ -187,7 +187,7 @@ SECTIONS
             *upstream?rngplay.o
             *upstream?palette.o
             *upstream?video.o
-            *native_engine_shim?sdl_shim.o
+            *port?rtthread?sdl_shim.o
         ) .text*)
 
         . = ALIGN(4);
@@ -356,7 +356,7 @@ SECTIONS
         *upstream?rngplay.o(.text .text.*)
         *upstream?palette.o(.text .text.*)
         *upstream?video.o(.text .text.*)
-        *native_engine_shim?sdl_shim.o(.text .text.*)
+        *port?rtthread?sdl_shim.o(.text .text.*)
         __sdlpal_itcm_end__ = .;
 
         . = ALIGN(4);

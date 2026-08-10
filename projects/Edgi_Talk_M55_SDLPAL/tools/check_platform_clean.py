@@ -8,14 +8,23 @@ import sys
 
 
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
-SOURCE_ROOTS = ("sdlpal", "platform", "audio", "applications")
+SOURCE_ROOTS = (
+    "sdlpal",
+    "platform",
+    "audio",
+    "applications",
+    "board",
+    "tests",
+)
 ROOT_FILES = ("SConstruct", "SConscript", "Kconfig", "README.md")
-SOURCE_SUFFIXES = {".c", ".h", ".cpp", ".inc", ".py", ".md"}
+SOURCE_SUFFIXES = {".c", ".h", ".cpp", ".inc", ".py", ".md", ".ld"}
+BUILD_FILENAMES = {"SConstruct", "SConscript", "Kconfig", "Makefile"}
 FORBIDDEN = (
     "esp" + "32",
     "esp" + "ressif",
     "esp_" + "platform",
     "esp_" + "attr.h",
+    "native" + "_engine_shim",
 )
 
 
@@ -26,7 +35,11 @@ def production_files() -> list[pathlib.Path]:
         files.extend(
             path
             for path in root.rglob("*")
-            if path.is_file() and path.suffix.lower() in SOURCE_SUFFIXES
+            if path.is_file()
+            and (
+                path.suffix.lower() in SOURCE_SUFFIXES
+                or path.name in BUILD_FILENAMES
+            )
         )
     return sorted(set(files))
 

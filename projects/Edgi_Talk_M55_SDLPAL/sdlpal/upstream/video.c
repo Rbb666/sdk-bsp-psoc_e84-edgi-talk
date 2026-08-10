@@ -68,9 +68,6 @@ volatile BOOL g_bRenderPaused = FALSE;
 #endif
 
 #if defined(PAL_EXTREME_TWO_SCREENS)
-#include "esp32s3/main/cardputer_extreme_memory.h"
-void PalEngineBridge_RenderPresentIndexed(const void *pixels, int pitch, int w, int h, const void *palette_rgba);
-#else
 static uint8_t pal_sram_video_screen[320u * 200u] PAL_VIDEO_SRAM;
 static uint8_t pal_psram_video_screen_bak[320u * 200u] PAL_VIDEO_PSRAM;
 static uint8_t pal_psram_video_screen_real[320u * 200u * 4u] PAL_VIDEO_PSRAM;

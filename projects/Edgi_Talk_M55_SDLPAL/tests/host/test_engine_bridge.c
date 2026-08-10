@@ -11,7 +11,6 @@
 
 static uint32_t fake_input_mask;
 static unsigned present_count;
-static uint32_t delayed_milliseconds;
 static const uint8_t *present_pixels;
 static size_t present_pitch;
 static pal_rgb_t present_palette[256];
@@ -29,16 +28,6 @@ bool pal_display_present_indexed(const uint8_t *pixels, size_t pitch,
 uint32_t pal_input_port_poll(void)
 {
     return fake_input_mask;
-}
-
-uint32_t rt_tick_get_millisecond(void)
-{
-    return 1234u;
-}
-
-void rt_thread_mdelay(rt_int32_t milliseconds)
-{
-    delayed_milliseconds = (uint32_t)milliseconds;
 }
 
 int rt_kprintf(const char *format, ...)
@@ -96,10 +85,6 @@ int main(void)
     expect_key(SDL_KEYDOWN, SDLK_RETURN);
     fake_input_mask = 0u;
     expect_key(SDL_KEYUP, SDLK_RETURN);
-
-    assert(PalEngineBridge_GetTicks() == 1234u);
-    PalEngineBridge_Delay(1u);
-    assert(delayed_milliseconds >= 1u);
 
     puts("engine_bridge: PASS");
     return 0;

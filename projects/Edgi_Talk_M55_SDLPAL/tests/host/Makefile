@@ -4,7 +4,7 @@ PLATFORM := ../../platform
 APPLICATIONS := ../../applications
 TOUCH_DRIVER := ../../../../libraries/Common/board/ports/display_panels/drv_touch.c
 INCLUDES := -I$(PLATFORM)
-SDL_SHIM := ../../sdlpal/upstream/esp32s3/native_engine_shim
+SDL_SHIM := ../../sdlpal/port/rtthread
 SDL_INCLUDES := -I$(SDL_SHIM)/include
 FAKE_INCLUDES := -Ifakes
 TOUCH_FAKE_INCLUDES := -Ifakes_touch
@@ -14,7 +14,7 @@ INPUT_FAKE_INCLUDES := -Ifakes_input
 AUDIO_INCLUDES := -I../../audio -I../../audio/third_party \
 	-I../../audio/third_party/adplug -I../../sdlpal/upstream \
 	-I../../sdlpal/upstream/sdl_compat \
-	-I../../sdlpal/upstream/esp32s3/native_engine_shim/include \
+	-I../../sdlpal/port/rtthread/include \
 	-I../../platform
 
 .PHONY: all test_usb_keyboard_core test_usb_keyboard_port test_input_port_touch test_input_port_keyboard test_display_core test_display_port test_touch_core test_port_headers test_storage \

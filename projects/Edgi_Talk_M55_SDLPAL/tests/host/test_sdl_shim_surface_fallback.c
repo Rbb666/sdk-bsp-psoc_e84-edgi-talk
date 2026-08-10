@@ -2,8 +2,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <rtthread.h>
+
 #include "SDL.h"
 #include "pal_memory_policy.h"
+
+uint32_t rt_tick_get_millisecond(void)
+{
+    return 0u;
+}
+
+rt_tick_t rt_tick_get(void)
+{
+    return 0u;
+}
+
+void rt_thread_mdelay(rt_int32_t milliseconds)
+{
+    (void)milliseconds;
+}
 
 static unsigned hot_failures;
 static unsigned cold_allocations;
