@@ -1,0 +1,660 @@
+mainmenu "PSoC Edge M55 Retro-Go Configuration"
+
+config BSP_USING_RETRO_GO
+    bool
+    select BSP_USING_LCD
+    select COMPONENT_MTB_DISPLAY_tl043wvv02
+    select BSP_USING_FILESYSTEM
+    select BSP_USING_SDCARD
+    select RT_USING_CHERRYUSB
+    select RT_CHERRYUSB_HOST
+    select RT_CHERRYUSB_HOST_HID
+    select RT_USING_CACHE
+    select RT_USING_RTC
+    select RT_USING_SOFT_RTC
+    default y
+
+if BSP_USING_RETRO_GO
+
+    config BSP_RETRO_GO_ROM_DIR
+        string "ROM directory"
+        default "/sdcard/roms"
+
+    config BSP_RETRO_GO_ROM_PATH
+        string "Preferred ROM path (empty selects first ROM)"
+        default ""
+
+    config BSP_RETRO_GO_SAVE_DIR
+        string "SRAM and state directory"
+        default "/sdcard/retro-go/saves"
+
+    config BSP_RETRO_GO_SD_MOUNT_TIMEOUT_MS
+        int "SD filesystem mount timeout (ms)"
+        range 1000 60000
+        default 30000
+
+    choice
+        prompt "Display scaling"
+        default BSP_RETRO_GO_SCALE_FIT
+
+        config BSP_RETRO_GO_SCALE_FIT
+            bool "Aspect-fit to full screen height"
+
+        config BSP_RETRO_GO_SCALE_INTEGER
+            bool "Integer scale with larger black border"
+    endchoice
+
+    config BSP_RETRO_GO_USE_VGLITE
+        bool "Use VG-Lite RGB565 scaling into the staging framebuffer"
+        default y
+
+    config BSP_RETRO_GO_MAX_FRAME_SKIP
+        int "Maximum consecutive frames skipped when rendering is late"
+        range 0 3
+        default 2
+
+    config BSP_RETRO_GO_GBA_MAX_FRAME_SKIP
+        int "GBA maximum consecutive render skips when behind"
+        range 0 2
+        default 1
+        depends on BSP_RETRO_GO_GBA
+
+    config BSP_RETRO_GO_GBA_LATE_SKIP_US
+        int "GBA lateness before one render skip (us)"
+        range 2000 16000
+        default 6000
+        depends on BSP_RETRO_GO_GBA
+
+    config BSP_RETRO_GO_GBA_MIN_DRAW_FRAMES_AFTER_SKIP
+        int "Minimum rendered GBA frames after a late skip"
+        range 1 5
+        default 2
+        depends on BSP_RETRO_GO_GBA
+
+    config BSP_RETRO_GO_MAX_ROMS
+        int "Maximum ROMs shown in the game menu"
+        range 1 128
+        default 64
+
+    config BSP_RETRO_GO_CJK_MENU
+        bool "Render UTF-8 Chinese ROM names in the launcher"
+        default y
+        help
+            Add an independent 16x16, 1-bpp CJK bitmap table generated from
+            the repository's permissively licensed SDLPAL Chinese glyphs.
+            FatFs LFN Unicode mode must remain set to UTF-8 (mode 2).
+
+    config BSP_RETRO_GO_GB_BOOT_BIOS
+        bool "Run the upstream GB/GBC boot BIOS animation when available"
+        default y
+        help
+            Load a user-supplied hardware BIOS after the cartridge header is
+            known and before gnuboy_reset(). The firmware never embeds or
+            redistributes Nintendo BIOS data; missing or invalid files fall
+            back to the normal post-BIOS reset state.
+
+    config BSP_RETRO_GO_GB_BIOS_PATH
+        string "DMG boot BIOS path"
+        default "/sdcard/retro-go/bios/gb_bios.bin"
+        depends on BSP_RETRO_GO_GB_BOOT_BIOS
+
+    config BSP_RETRO_GO_GBC_BIOS_PATH
+        string "CGB boot BIOS path"
+        default "/sdcard/retro-go/bios/gbc_bios.bin"
+        depends on BSP_RETRO_GO_GB_BOOT_BIOS
+
+    config BSP_RETRO_GO_GBA
+        bool "Enable Game Boy Advance via gpSP interpreter"
+        default y
+
+    config BSP_RETRO_GO_GBA_ROM_CACHE_MB
+        int "GBA paged ROM cache size (MiB)"
+        range 2 7
+        default 7
+        depends on BSP_RETRO_GO_GBA
+
+    config BSP_RETRO_GO_GBA_AUDIO_MIX_KHZ
+        int "GBA internal audio mixer rate (kHz)"
+        range 16 32
+        default 16
+        depends on BSP_RETRO_GO_GBA
+        help
+            16 kHz is the validated real-time profile for the portable gpSP
+            interpreter. Use 32 kHz only for audio-quality A/B on games that
+            still leave sufficient CPU headroom.
+
+    config BSP_RETRO_GO_GBA_FIR_RESAMPLER
+        bool "Low-pass GBA audio before resampling to 16 kHz"
+        default n
+        depends on BSP_RETRO_GO_GBA && BSP_RETRO_GO_GBA_AUDIO_MIX_KHZ = 32
+
+    config BSP_RETRO_GO_GBA_PERF_STATS
+        bool "Print GBA performance statistics every 5 seconds"
+        default y
+        depends on BSP_RETRO_GO_GBA
+
+    config BSP_RETRO_GO_GBA_DEEP_PROFILE
+        bool "Profile gpSP interpreter, PPU, DMA, sound and ROM misses"
+        default y
+        depends on BSP_RETRO_GO_GBA_PERF_STATS && BSP_RETRO_GO_DWT_TIMING
+        help
+            Use linker wrappers and the M55 DWT counter to attribute each
+            five-second window without modifying the gpSP snapshot. Page-miss
+            counts cover cross-translation-unit misses and are a conservative
+            lower bound for same-file gba_memory accesses.
+
+    config BSP_RETRO_GO_GBA_CHEATS
+        bool "Enable gpSP cheat hook checks"
+        default n
+        depends on BSP_RETRO_GO_GBA
+        help
+            Enable this only when a future launcher adds cheat-code loading.
+            With the current frontend no cheats can be installed, so keeping
+            this disabled lets O3 remove two checks from every interpreted
+            ARM/Thumb guest instruction without modifying the gpSP snapshot.
+
+    config BSP_RETRO_GO_GBA_ARM_AL_FASTPATH
+        bool "Bypass gpSP ARM condition dispatch for cond=AL"
+        default y
+        depends on BSP_RETRO_GO_GBA
+        help
+            Generate a Cortex-M55 build overlay from the immutable gpSP
+            cpu.cc snapshot. Unconditional ARM instructions bypass the 16-way
+            condition switch; conditions 0x0-0xD and reserved 0xF retain the
+            original code. The generator verifies the source SHA and unique
+            sentinels, so an upstream snapshot change fails the build instead
+            of applying a stale transformation.
+
+    config BSP_RETRO_GO_GBA_LAZY_CPSR_WRITEBACK
+        bool "Skip unchanged gpSP CPSR flag writeback"
+        default y
+        depends on BSP_RETRO_GO_GBA_ARM_AL_FASTPATH
+        help
+            Add a dirty flag to gpSP's local N/Z/C/V state. ARM and Thumb loop
+            boundaries retain the original CPSR synchronization point, but
+            skip its stack loads, shifts and store when the previous guest
+            instruction did not modify flags. Explicit MRS/MSR, IRQ, SWI,
+            update, alert and exit synchronization remains unchanged.
+
+    config BSP_RETRO_GO_GBA_FAST_RAM_WRITE_INLINE
+        bool "Inline gpSP EWRAM/IWRAM guest writes (experimental)"
+        default n
+        depends on BSP_RETRO_GO_GBA && !BSP_RETRO_GO_GBA_CHEATS
+        help
+            Let the portable cpu.cc interpreter write guest regions 0x02 and
+            0x03 directly. VRAM, OAM, palette, IO and backup writes retain the
+            upstream handlers and all side effects. This is injected only by
+            the platform preinclude; the gpSP snapshot remains unchanged. The
+            forced inline form grows the already large interpreter object, so
+            keep it disabled unless the ITCM layout is rebalanced first.
+
+    config BSP_RETRO_GO_GBA_FAST_RAM_WRITE_WRAPPER
+        bool "Use compact gpSP EWRAM/IWRAM write dispatcher"
+        default n
+        depends on BSP_RETRO_GO_GBA && !BSP_RETRO_GO_GBA_FAST_RAM_WRITE_INLINE
+        help
+            Redirect cpu.cc calls through a small platform linker wrapper.
+            Common guest writes to EWRAM and IWRAM bypass gpSP's full memory
+            region switch; VRAM, OAM, palette, IO, ROM and backup writes fall
+            through to the original handler with all side effects preserved.
+            Unlike the forced-inline experiment this adds only one shared copy
+            of the fast path and preserves the Cortex-M55 ITCM safety reserve.
+            Keep it disabled in the release profile: board A/B measurements
+            showed no measurable interpreter or frame-rate improvement.
+
+    config BSP_RETRO_GO_ASYNC_GBA_DISPLAY
+        bool "Run GBA VG-Lite/LCD present in a dedicated worker"
+        default n
+        depends on BSP_RETRO_GO_GBA
+        help
+            Optional experimental worker mode. The validated default executes
+            scale/rotate/present synchronously in the emulator main thread.
+
+    config BSP_RETRO_GO_DISPLAY_THREAD_PRIORITY
+        int "Asynchronous display worker priority"
+        range 25 30
+        default 25
+        depends on BSP_RETRO_GO_ASYNC_GBA_DISPLAY
+
+    config BSP_RETRO_GO_DISPLAY_THREAD_SLICE
+        int "Asynchronous display worker time slice (ticks)"
+        range 1 20
+        default 5
+        depends on BSP_RETRO_GO_ASYNC_GBA_DISPLAY
+
+    config BSP_RETRO_GO_DISPLAY_YIELD_MS
+        int "Main-thread yield while asynchronous display is active (ms)"
+        range 1 5
+        default 2
+        depends on BSP_RETRO_GO_ASYNC_GBA_DISPLAY
+
+    config BSP_RETRO_GO_GBA_DIRECT_SCANOUT
+        bool "Scale and rotate GBA directly into the active scanout"
+        default y
+        depends on BSP_RETRO_GO_GBA && BSP_RETRO_GO_USE_VGLITE && !BSP_RETRO_GO_ASYNC_GBA_DISPLAY
+        help
+            Keep display processing in the emulator main thread, but combine
+            the 3x scale and 90/270 degree rotation into one VG-Lite blit to
+            the active GFXSS scanout buffer. This removes the staging copy,
+            the second rotation pass and the blocking frame-present wait.
+            The existing synchronous vendor path remains the automatic
+            fallback if the runtime scanout contract does not match.
+
+    config BSP_RETRO_GO_GBA_FLIP_WAIT_MS
+        int "Maximum direct-scanout vblank wait (ms)"
+        range 0 5
+        default 3
+        depends on BSP_RETRO_GO_GBA_DIRECT_SCANOUT
+        help
+            At full emulation speed, use up to 3 ms of the remaining 16.7 ms
+            frame budget to catch the next 52.3 Hz DC vblank instead of
+            coalescing an extra frame. Slow scenes already exceed the panel
+            period and therefore return immediately without added delay.
+
+    config BSP_RETRO_GO_GBA_DIRECT_RENDER
+        bool "Experimental: scale GBA directly into the logical framebuffer"
+        default n
+        depends on BSP_RETRO_GO_ASYNC_GBA_DISPLAY && BSP_RETRO_GO_USE_VGLITE && BSP_RETRO_GO_PERF_OVERLAY
+        help
+            Remove the intermediate 720x480 AXIDMAC copy. The worker writes
+            x=0..719 directly, stages the 80-pixel panel, then asks the vendor
+            driver only for its required rotate/present operation.
+
+    config BSP_RETRO_GO_GBA_DIRECT_CPU_SCALE
+        bool "Use the M55 integer 3x scaler directly on the LCD framebuffer"
+        default n
+        depends on BSP_RETRO_GO_ASYNC_GBA_DISPLAY && BSP_RETRO_GO_PERF_OVERLAY
+        help
+            Write x=0..719 of the logical framebuffer directly and leave only
+            the required vendor VG-Lite rotation/present pass. This avoids the
+            first VG-Lite cache flush and the 691 KiB AXIDMAC area copy.
+
+    config BSP_RETRO_GO_PERF_OVERLAY
+        bool "Show the Retro-Go performance monitor beside gameplay"
+        default y
+        help
+            Use the rightmost 80 x 320 pixels for live FPS, frameskip,
+            busy-time, display and audio statistics. Static platform flags
+            are intentionally omitted so the panel stays compact.
+
+    config BSP_RETRO_GO_PERF_UPDATE_MS
+        int "Performance monitor refresh period (ms)"
+        range 250 5000
+        default 1000
+        depends on BSP_RETRO_GO_PERF_OVERLAY
+
+    config BSP_RETRO_GO_DWT_TIMING
+        bool "Use Cortex-M55 DWT CYCCNT for frame/performance timing"
+        default y
+
+    config BSP_RETRO_GO_M55_BRANCH_PREDICTION
+        bool "Enable Cortex-M55 dynamic branch prediction"
+        default y
+        help
+            Invalidate the M55 branch predictor state, enable SCB CCR.BP and
+            verify the bit by readback before starting Retro-Go. The portable
+            gpSP interpreter uses condition and opcode jump tables for every
+            guest instruction, so keeping prediction disabled unnecessarily
+            increases its dispatch cost. This is a core platform setting and
+            does not change emulator or vendor driver sources.
+
+    config BSP_RETRO_GO_AUDIO
+        bool "Enable I2S game audio"
+        default y
+
+    choice
+        prompt "Retro-Go audio output backend"
+        default BSP_RETRO_GO_AUDIO_BACKEND_PDL
+        depends on BSP_RETRO_GO_AUDIO
+
+        config BSP_RETRO_GO_AUDIO_BACKEND_PDL
+            bool "Infineon PDL TDM FIFO (direct mono)"
+            select BSP_USING_I2C
+            select BSP_USING_HW_I2C0
+
+        config BSP_RETRO_GO_AUDIO_BACKEND_RTTHREAD
+            bool "RT-Thread Audio framework + vendor I2S driver"
+            select BSP_USING_AUDIO
+            select BSP_USING_AUDIO_PLAY
+    endchoice
+
+    config BSP_RETRO_GO_I2S_THREAD_PRIORITY
+        int "I2S playback thread priority (must be lower than MSH)"
+        range 21 30
+        default 21
+        depends on BSP_RETRO_GO_AUDIO_BACKEND_RTTHREAD
+
+    config BSP_RETRO_GO_AUDIO_THREAD_PRIORITY
+        int "Retro-Go audio feeder priority (must be lower than MSH)"
+        range 21 30
+        default 22
+        depends on BSP_RETRO_GO_AUDIO_BACKEND_RTTHREAD
+
+    config BSP_RETRO_GO_AUDIO_PREROLL_SAMPLES
+        int "Audio preroll before I2S playback (mono samples)"
+        range 512 4096
+        default 2048
+        depends on BSP_RETRO_GO_AUDIO
+        help
+            Buffer mono source samples before starting the selected sink.
+            2048 samples provide 128 ms of startup protection at 16 kHz.
+
+    config BSP_RETRO_GO_AUDIO_OUTPUT_TARGET_SAMPLES
+        int "WSOLA output-ring target (samples)"
+        range 2048 4096
+        default 3584
+        depends on BSP_RETRO_GO_AUDIO_WSOLA
+        help
+            Keep about 224 ms of already synthesized pitch-preserving audio
+            ready for the PDL ISR, covering occasional long emulator frames
+            without increasing interrupt work.
+
+    config BSP_RETRO_GO_AUDIO_START_BATCH_SAMPLES
+        int "Initial I2S batch size (mono samples)"
+        range 512 1024
+        default 512
+        depends on BSP_RETRO_GO_AUDIO_BACKEND_RTTHREAD
+        help
+            Queue two 256-sample RT-Audio blocks before starting hardware so
+            the high-priority I2S task cannot request an empty second frame.
+
+    config BSP_RETRO_GO_I2S_EXACT_16K_CLOCK
+        bool "Correct the vendor mono divider to an exact 16 kHz LRCK"
+        default y
+        depends on BSP_RETRO_GO_AUDIO_BACKEND_RTTHREAD
+        help
+            Correct the optional RT-Audio backend's vendor mono divider after
+            AUDIO_CTL_CONFIGURE. The direct PDL backend always uses a codec-
+            valid 4.096 MHz MCLK (256fs), 512 kHz BCLK and 16 kHz LRCK instead.
+
+    config BSP_RETRO_GO_AUDIO_CONTINUITY_LINEAR
+        bool "Continuously stretch slow-core audio with linear interpolation"
+        default y
+        depends on BSP_RETRO_GO_AUDIO
+        help
+            Drive the I2S sink with fixed 256-sample blocks and apply a short
+            fade when source data truly runs out. Pitch-changing resampling
+            is controlled separately and is disabled by default.
+
+    config BSP_RETRO_GO_AUDIO_VARISPEED
+        bool "Allow continuity mode to change pitch with emulation speed"
+        default y
+        depends on BSP_RETRO_GO_AUDIO_CONTINUITY_LINEAR
+        help
+            Keep full-speed audio at 1:1. When a heavy game cannot produce
+            16 kHz in real time, smoothly follow its measured rate instead of
+            repeatedly fading an empty buffer in and out.
+
+    config BSP_RETRO_GO_AUDIO_WSOLA
+        bool "Preserve pitch with lightweight WSOLA time stretching"
+        default y
+        depends on BSP_RETRO_GO_AUDIO_BACKEND_PDL && BSP_RETRO_GO_AUDIO_VARISPEED
+        help
+            Generate a fixed-rate output ring in the producer context using
+            configurable grains, 50-percent overlap/add and a waveform
+            similarity search. The TDM ISR remains a simple 1:1 FIFO feeder.
+            This avoids the low pitch and repeated fade pumping of linear
+            resampling when the portable GBA core runs below real time.
+
+    config BSP_RETRO_GO_AUDIO_WSOLA_GRAIN_SAMPLES
+        int "WSOLA grain size (samples)"
+        range 256 1024
+        default 512
+        depends on BSP_RETRO_GO_AUDIO_WSOLA
+        help
+            A 512-sample/32-ms grain with 50 percent overlap improves pitch
+            continuity for low-frequency and mixed GBA audio while remaining
+            inexpensive on the M55.
+
+    config BSP_RETRO_GO_AUDIO_WSOLA_SEARCH_SAMPLES
+        int "WSOLA waveform search radius (samples)"
+        range 16 192
+        default 96
+        depends on BSP_RETRO_GO_AUDIO_WSOLA
+        help
+            Search +/-96 samples around the nominal analysis position. The
+            selected local offset never changes the long-term playback rate.
+
+    config BSP_RETRO_GO_AUDIO_TARGET_SAMPLES
+        int "Adaptive audio source-ring target (samples)"
+        range 256 2048
+        default 1536
+        depends on BSP_RETRO_GO_AUDIO_CONTINUITY_LINEAR
+
+    config BSP_RETRO_GO_AUDIO_BUFFER_CORRECTION_PERCENT
+        int "Maximum WSOLA source-buffer correction (percent)"
+        range 1 20
+        default 12
+        depends on BSP_RETRO_GO_AUDIO_WSOLA
+        help
+            Temporarily vary the analysis hop around the measured source rate
+            to bring the source ring back to its target. WSOLA preserves pitch,
+            so a stronger 12 percent correction removes multi-second latency
+            buildup without changing the codec sample rate.
+
+    config BSP_RETRO_GO_AUDIO_MIN_SPEED_PERCENT
+        int "Minimum adaptive audio speed (percent)"
+        range 25 100
+        default 25
+        depends on BSP_RETRO_GO_AUDIO_CONTINUITY_LINEAR
+
+    config BSP_RETRO_GO_AUDIO_RATE_WINDOW_MS
+        int "Adaptive audio rate measurement window (ms)"
+        range 250 2000
+        default 250
+        depends on BSP_RETRO_GO_AUDIO_CONTINUITY_LINEAR
+
+    config BSP_RETRO_GO_AUDIO_STARTUP_RATE_WINDOW_MS
+        int "Initial adaptive audio rate measurement window (ms)"
+        range 50 250
+        default 50
+        depends on BSP_RETRO_GO_AUDIO_CONTINUITY_LINEAR
+
+    config BSP_RETRO_GO_AUDIO_CONCEAL_FADE_MS
+        int "Audio starvation fade duration (ms)"
+        range 2 20
+        default 10
+        depends on BSP_RETRO_GO_AUDIO_CONTINUITY_LINEAR
+
+    config BSP_RETRO_GO_INPUT_THREAD_PRIORITY
+        int "Retro-Go HID input priority (must be lower than MSH)"
+        range 21 30
+        default 24
+
+    config BSP_RETRO_GO_INPUT_RELEASE_TIMEOUT_MS
+        int "Session-transition key-release timeout (ms)"
+        range 100 5000
+        default 1000
+        help
+            Discard emulator-only key events while waiting for Escape to be
+            released before entering the launcher. This prevents the Escape
+            used for save-and-exit from immediately cancelling the menu.
+
+    config BSP_RETRO_GO_AUTOSAVE_SECONDS
+        int "Dirty SRAM autosave period (0 disables)"
+        range 0 3600
+        default 0
+
+    config BSP_RETRO_GO_CORE_ITCM
+        bool "Run gnuboy CPU/LCD/audio hot code from ITCM"
+        default n
+
+    config BSP_RETRO_GO_HYPERRAM_WRITEBACK_CACHE
+        bool "Cache the Retro-Go private 8 MiB HyperRAM heap"
+        default y
+        help
+            Replaces the generated non-cacheable MPU mapping only for
+            0x64400000-0x64BFFFFF with Normal WB/RA/WA before D-Cache is
+            enabled. The remaining shared 4 MiB stays non-cacheable.
+
+    config BSP_RETRO_GO_GBA_FRAMEBUFFER_CACHEABLE
+        bool "Cache gpSP source framebuffer and clean before VG-Lite"
+        default n
+        depends on BSP_RETRO_GO_GBA && BSP_RETRO_GO_HYPERRAM_WRITEBACK_CACHE
+        help
+            Override only the 77 KiB gpSP source window inside GFXRAM as
+            WB/RA/WA. The CPU performs tile/sprite/blend rendering through
+            D-cache, then the display platform cleans the window before the
+            GPU reads it. Physical scanout buffers remain non-cacheable.
+            Keep disabled on the current board: cacheable transactions to
+            GFXRAM stall the interconnect during display initialization.
+
+endif
+
+config SOC_SERIES_IFX_PSOCE84
+    bool
+    select RT_USING_COMPONENTS_INIT
+    select RT_USING_USER_MAIN
+    default y
+
+config KIT_PROCE84_EVK_M55
+    bool
+    default y
+
+config BSP_USING_USB_TO_UART
+    bool
+    select BSP_USING_UART
+    select BSP_USING_UART2
+    default y
+
+config BSP_USING_AUDIO
+    bool
+    select RT_USING_AUDIO
+    select BSP_USING_I2C
+    select BSP_USING_HW_I2C0
+    default y if BSP_RETRO_GO_AUDIO_BACKEND_RTTHREAD
+
+config BSP_USING_AUDIO_PLAY
+    bool
+    default y if BSP_RETRO_GO_AUDIO_BACKEND_RTTHREAD
+
+config BSP_USING_LCD
+    bool
+    select RT_USING_LCD
+    select BSP_USING_PWM
+    select BSP_USING_PWM18
+    select BSP_USING_HYPERAM
+    default y
+
+config COMPONENT_MTB_DISPLAY_tl043wvv02
+    bool
+    default y
+
+config M55_BSP_LCD_ROTATION_90
+    bool
+    default y
+
+config BSP_LCD_ROTATION_90
+    bool
+    default y
+
+config BSP_LCD_ROTATION_DEGREES
+    int
+    default 90
+
+config BSP_LCD_ROTATION_BACKEND_VGLITE
+    bool
+    default y
+
+config BSP_LCD_USE_AXIDMAC_AREA_COPY
+    bool
+    default y
+
+config BSP_LCD_AXIDMAC_AREA_COPY_MIN_BYTES
+    int
+    default 8192
+
+config BSP_USING_GPIO
+    bool
+    select RT_USING_PIN
+    default y
+
+config BSP_USING_I2C
+    bool
+    select RT_USING_I2C
+    default y if BSP_RETRO_GO_AUDIO
+
+config BSP_USING_HW_I2C0
+    bool
+    default y if BSP_RETRO_GO_AUDIO
+
+config BSP_USING_UART
+    bool
+    select RT_USING_SERIAL
+    default y
+
+config BSP_USING_UART2
+    bool
+    default y
+
+config BSP_USING_HYPERAM
+    bool
+    select RT_USING_MEMHEAP_AUTO_BINDING
+    default y
+
+config BSP_USING_HYPERAM_SIZE
+    hex
+    default 0x800000
+
+config BSP_USING_PWM
+    bool
+    select RT_USING_PWM
+    default y
+
+config BSP_USING_PWM18
+    bool
+    default y
+
+config BSP_USING_SDIO
+    bool
+    select RT_USING_SDIO
+    default y
+
+config BSP_USING_SDIO1
+    bool
+    default y
+
+config BSP_USING_FILESYSTEM
+    bool
+    select RT_USING_DFS
+    select RT_USING_POSIX_FS
+    select RT_USING_DFS_DEVFS
+    select RT_USING_DFS_ROMFS
+    default y
+
+config BSP_USING_SDCARD
+    bool
+    select RT_USING_DFS_ELMFAT
+    select BSP_USING_SDIO
+    select BSP_USING_SDIO1
+    default y
+
+config RT_USING_I2C_BITOPS
+    bool
+    default n
+
+config CONFIG_USBHOST_PSC_PRIO
+    int "CherryUSB Host hub priority (must be lower than MSH)"
+    range 21 29
+    default 23
+
+config RT_MAIN_THREAD_PRIORITY
+    int
+    default 25 if BSP_USING_RETRO_GO
+
+config RT_MAIN_THREAD_STACK_SIZE
+    int
+    default 16384 if BSP_RETRO_GO_GBA
+
+config RT_AUDIO_REPLAY_MP_BLOCK_SIZE
+    int
+    default 512
+    depends on BSP_RETRO_GO_AUDIO_BACKEND_RTTHREAD
+
+config RT_AUDIO_REPLAY_MP_BLOCK_COUNT
+    int
+    default 8
+    depends on BSP_RETRO_GO_AUDIO_BACKEND_RTTHREAD
+
+source "../../rt-thread/Kconfig"
+source "../../libraries/components/CherryUSB-1.6.0/Kconfig.rtt"

@@ -55,8 +55,11 @@ MEMORY
     m33_nvm_C : ORIGIN = 0x08340000, LENGTH = 0x00200000
     m33_trailer : ORIGIN = 0x60540000, LENGTH = 0x00040000
     m33_trailer_C : ORIGIN = 0x08540000, LENGTH = 0x00040000
-    m33_m55_shared : ORIGIN = 0x261C0000, LENGTH = 0x00040000
-    m33_m55_shared_C : ORIGIN = 0x061C0000, LENGTH = 0x00040000
+    /* Retro-Go uses the lower 192 KiB as M55-local Secondary SRAM. The
+       current M33 template has no .cy_shared_socmem payload; retain 64 KiB
+       at the top of SOCMEM for future inter-core messages. */
+    m33_m55_shared : ORIGIN = 0x261F0000, LENGTH = 0x00010000
+    m33_m55_shared_C : ORIGIN = 0x061F0000, LENGTH = 0x00010000
     m33_code : ORIGIN = 0x24058000, LENGTH = 0x00065000
     m33_code_C : ORIGIN = 0x04058000, LENGTH = 0x00065000
     m33_data : ORIGIN = 0x240BD000, LENGTH = 0x00040000

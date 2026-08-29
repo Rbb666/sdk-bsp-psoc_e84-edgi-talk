@@ -1,0 +1,180 @@
+from building import *
+
+import subprocess
+import sys
+import os
+
+Import('env')
+
+cwd = GetCurrentDir()
+repo_root = cwd + '/../../../..'
+
+src = ['retro_go_app.c']
+platform_src = [
+    'platform/retro_go_core.c',
+    'platform/retro_go_display.c',
+    'platform/retro_go_input.c',
+    'platform/retro_go_launcher_assets.c',
+    'platform/retro_go_launcher_font.c',
+    'platform/retro_go_menu.c',
+    'platform/retro_go_memory.c',
+    'platform/retro_go_perf.c',
+    'platform/retro_go_storage.c',
+    'platform/retro_go_time.c',
+]
+if GetDepend(['BSP_RETRO_GO_AUDIO_BACKEND_PDL']):
+    platform_src.append('platform/retro_go_audio_pdl.c')
+else:
+    platform_src.append('platform/retro_go_audio.c')
+core_src = [
+    'upstream/gnuboy/cpu.c',
+    'upstream/gnuboy/gnuboy.c',
+    'upstream/gnuboy/hw.c',
+    'upstream/gnuboy/lcd.c',
+    'upstream/gnuboy/sound.c',
+]
+gba_platform_src = [
+    'platform/retro_go_gba.c',
+    'platform/retro_go_gba_bios.c',
+]
+if GetDepend(['BSP_RETRO_GO_GBA_DEEP_PROFILE']):
+    gba_platform_src.append('platform/retro_go_gpsp_profile.c')
+gba_core_c_src = [
+    'upstream/gpsp/gpsp_main.c',
+    'upstream/gpsp/gba_memory.c',
+    'upstream/gpsp/sound.c',
+    'upstream/gpsp/input.c',
+    'upstream/gpsp/cheats.c',
+    'upstream/gpsp/serial.c',
+    'upstream/gpsp/serial_proto.c',
+    'upstream/gpsp/rfu.c',
+    'upstream/gpsp/gbp.c',
+    'upstream/gpsp/savestate.c',
+]
+if GetDepend(['BSP_RETRO_GO_GBA_FAST_RAM_WRITE_WRAPPER']):
+    # Build the compact dispatcher with the same aliasing/alignment contract
+    # as gpSP's original gba_memory.c implementation.
+    gba_core_c_src.append('platform/retro_go_gpsp_fastmem.c')
+gba_cpu_src = 'upstream/gpsp/cpu.cc'
+if GetDepend(['BSP_RETRO_GO_GBA_ARM_AL_FASTPATH']):
+    gpsp_cpu_source = cwd + '/upstream/gpsp/cpu.cc'
+    gpsp_cpu_generator = repo_root + '/tools/generate_retro_go_gpsp_m55_cpu.py'
+    gpsp_lazy_flags = GetDepend(['BSP_RETRO_GO_GBA_LAZY_CPSR_WRITEBACK'])
+    gpsp_cpu_variant = 'gpsp_m55_lazy' if gpsp_lazy_flags else 'gpsp_m55'
+    gpsp_cpu_target = (cwd + '/../../build/generated/' +
+                       gpsp_cpu_variant + '/cpu.cc')
+
+    def generate_gpsp_m55_cpu(target, source, env):
+        output_path = target[0].abspath
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        try:
+            command = [
+                sys.executable,
+                source[1].abspath,
+                '--source', source[0].abspath,
+                '--output', output_path,
+            ]
+            if gpsp_lazy_flags:
+                command.append('--lazy-flags')
+            result = subprocess.run(command, shell=False)
+        except OSError as error:
+            print('gpSP M55 overlay generator failed: %s' % error)
+            return 1
+        if result.returncode != 0:
+            return result.returncode
+        if not os.path.isfile(output_path):
+            print('gpSP M55 overlay generator produced no target: %s' %
+                  output_path)
+            return 1
+        return 0
+
+    gba_cpu_src = env.Command(
+        gpsp_cpu_target,
+        [gpsp_cpu_source, gpsp_cpu_generator],
+        generate_gpsp_m55_cpu,
+    )[0]
+
+gba_core_cxx_src = [gba_cpu_src, 'upstream/gpsp/video.cc']
+
+path = [
+    cwd,
+    cwd + '/platform',
+    cwd + '/upstream/gnuboy',
+    cwd + '/upstream/gpsp',
+    repo_root + '/libraries/HAL_Drivers',
+    repo_root + '/libraries/Common/board/ports/usb',
+    repo_root + '/libraries/Common/board/ports/audio',
+    repo_root + '/libraries/components/CherryUSB-1.6.0/common',
+    repo_root + '/libraries/components/CherryUSB-1.6.0/core',
+    repo_root + '/libraries/components/CherryUSB-1.6.0/class/hid',
+    repo_root + '/libraries/components/mtb-device-support-pse8xxgp/pdl/drivers/third_party/COMPONENT_GFXSS/vsi/gcnano',
+]
+
+app_group = DefineGroup(
+    'RetroGoApp', src, depend=['BSP_USING_RETRO_GO'],
+    CPPPATH=path, LOCAL_CPPPATH=path,
+    LOCAL_CCFLAGS=' -O3 -ffunction-sections -fdata-sections')
+
+platform_group = DefineGroup(
+    'RetroGoPlatform', platform_src, depend=['BSP_USING_RETRO_GO'],
+    CPPPATH=path, LOCAL_CPPPATH=path,
+    LOCAL_CCFLAGS=' -O3 -ffunction-sections -fdata-sections')
+
+cjk_group = DefineGroup(
+    'RetroGoCJKFont', ['platform/retro_go_cjk_font.c'],
+    depend=['BSP_RETRO_GO_CJK_MENU'],
+    CPPPATH=path, LOCAL_CPPPATH=path,
+    LOCAL_CCFLAGS=' -O2 -ffunction-sections -fdata-sections')
+
+# gnuboy uses biased page pointers and unaligned little-endian word accesses.
+# ESP-IDF builds with strict aliasing disabled; keep the same portability
+# contract on Cortex-M55 and avoid aggressive UB-based optimization.
+core_group = DefineGroup(
+    'RetroGoCore', core_src, depend=['BSP_USING_RETRO_GO'],
+    CPPPATH=path, LOCAL_CPPPATH=path,
+    LOCAL_CCFLAGS=' -O2 -fno-strict-aliasing -fno-strict-overflow '
+                  '-fwrapv -fno-lto -mno-unaligned-access '
+                  '-Wno-maybe-uninitialized '
+                  '-ffunction-sections -fdata-sections')
+
+# Issue #349's RV32 dynarec and the legacy A32 backend cannot execute on the
+# Thumb-only Cortex-M55. Build gpSP's portable cpu.cc interpreter instead.
+gba_cache_mb = GetConfigValue('BSP_RETRO_GO_GBA_ROM_CACHE_MB') or 6
+gba_common_flags = (' -O3 -DCOLOR_16_BIT -DCOLOR_5_6_5 -DNDEBUG '
+                    '-DROM_BUFFER_SIZE=%s -fno-strict-aliasing '
+                    '-fno-strict-overflow -fwrapv -fno-lto '
+                    '-mno-unaligned-access '
+                    '-ffunction-sections -fdata-sections' % gba_cache_mb)
+gba_flags = gba_common_flags + ' -include retro_go_gpsp_prelude.h'
+gba_cxx_flags = ' -fno-exceptions -fno-rtti -fno-use-cxa-atexit'
+if not GetDepend(['BSP_RETRO_GO_GBA_CHEATS']):
+    gba_cxx_flags += ' -include retro_go_gpsp_no_cheats.h'
+
+gba_platform_group = DefineGroup(
+    'RetroGoGBAPlatform', gba_platform_src,
+    depend=['BSP_RETRO_GO_GBA'],
+    CPPPATH=path, LOCAL_CPPPATH=path,
+    LOCAL_CCFLAGS=' -O3 -ffunction-sections -fdata-sections')
+
+gba_core_c_group = DefineGroup(
+    'RetroGoGBACore', gba_core_c_src,
+    depend=['BSP_RETRO_GO_GBA'],
+    CPPPATH=path, LOCAL_CPPPATH=path,
+    LOCAL_CCFLAGS=gba_flags)
+
+gba_core_cxx_group = DefineGroup(
+    'RetroGoGBAInterpreter', gba_core_cxx_src,
+    depend=['BSP_RETRO_GO_GBA'],
+    CPPPATH=path, LOCAL_CPPPATH=path,
+    LOCAL_CCFLAGS=gba_common_flags, LOCAL_CXXFLAGS=gba_cxx_flags)
+
+group = []
+group += app_group
+group += platform_group
+group += cjk_group
+group += core_group
+group += gba_platform_group
+group += gba_core_c_group
+group += gba_core_cxx_group
+
+Return('group')

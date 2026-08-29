@@ -1,0 +1,15 @@
+import os
+Import('RTT_ROOT')
+from building import *
+
+cwd = GetCurrentDir()
+objs = []
+
+for directory in os.listdir(cwd):
+    if directory == 'drivers':
+        continue
+    path = os.path.join(cwd, directory)
+    if os.path.isfile(os.path.join(path, 'SConscript')):
+        objs += SConscript(os.path.join(directory, 'SConscript'))
+
+Return('objs')

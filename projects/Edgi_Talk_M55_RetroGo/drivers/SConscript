@@ -1,0 +1,67 @@
+import os
+
+Import('env')
+from building import *
+
+cwd = GetCurrentDir()
+repo_root = os.path.abspath(os.path.join(cwd, '..', '..', '..'))
+hal_root = os.path.join(repo_root, 'libraries', 'HAL_Drivers')
+common_root = os.path.join(repo_root, 'libraries', 'Common', 'board', 'ports')
+pdl_root = os.path.join(
+    repo_root, 'libraries', 'components', 'mtb-device-support-pse8xxgp',
+    'pdl', 'drivers')
+
+sources = {
+    'hal': [
+        os.path.join(hal_root, 'drv_common.c'),
+        os.path.join(hal_root, 'drv_gpio.c'),
+        os.path.join(hal_root, 'drv_uart.c'),
+        os.path.join(hal_root, 'drv_sdio.c'),
+        os.path.join(hal_root, 'drv_pwm.c'),
+        os.path.join(hal_root, 'drv_lcd.c'),
+    ],
+    'common': [
+        os.path.join(common_root, 'display_panels', 'display_tl043wvv02.c'),
+        os.path.join(common_root, 'drv_hyperam.c'),
+        os.path.join(common_root, 'filesystem', 'mnt.c'),
+    ],
+    'pdl': [],
+}
+
+if GetDepend(['BSP_RETRO_GO_AUDIO']):
+    sources['hal'].append(os.path.join(hal_root, 'drv_i2c.c'))
+    if GetDepend(['BSP_RETRO_GO_AUDIO_BACKEND_RTTHREAD']):
+        sources['hal'].append(os.path.join(hal_root, 'drv_i2s.c'))
+    else:
+        # The shared PDL SConscript gates cy_tdm.c on RT_USING_AUDIO. The
+        # direct backend intentionally does not enable RT-Audio, so compile
+        # exactly this required PDL translation unit in the platform project.
+        sources['pdl'].append(os.path.join(pdl_root, 'source', 'cy_tdm.c'))
+    sources['common'].append(
+        os.path.join(common_root, 'audio', 'drv_es8388.c'))
+
+driver_env = env.Clone()
+driver_env.AppendUnique(CPPPATH=[
+    hal_root,
+    os.path.join(hal_root, 'config'),
+    os.path.join(common_root, 'audio'),
+    os.path.join(common_root, 'display_panels'),
+    os.path.join(common_root, 'filesystem'),
+    os.path.join(common_root, 'usb'),
+])
+
+objects = []
+for category, category_sources in sources.items():
+    for source in category_sources:
+        stem = os.path.splitext(os.path.basename(source))[0]
+        target = os.path.join('#', 'build', 'retro_go_drivers',
+                              category, stem)
+        source_env = driver_env
+        if stem == 'drv_i2s':
+            # Select the vendor driver's existing primed 16 ms playback path
+            # for this standalone project only. The vendor source is untouched.
+            source_env = driver_env.Clone()
+            source_env.AppendUnique(CPPDEFINES=['BSP_USING_SDLPAL'])
+        objects += source_env.Object(target=target, source=source)
+
+Return('objects')

@@ -1,0 +1,126 @@
+import os
+import platform
+import subprocess
+import sys
+import uuid
+
+import rtconfig
+
+if os.path.exists('rt-thread'):
+    RTT_ROOT = os.path.normpath(os.getcwd() + '/rt-thread')
+else:
+    RTT_ROOT = os.path.normpath(os.getcwd() + '/../../rt-thread')
+
+# RT-Thread's nested Kconfig files expand RTT_DIR as an environment variable.
+os.environ['RTT_DIR'] = RTT_ROOT.replace('\\', '/')
+
+sys.path.append(os.path.join(RTT_ROOT, 'tools'))
+try:
+    from building import *
+except Exception as error:
+    print('Unable to load RT-Thread build tools:', error)
+    print(RTT_ROOT)
+    sys.exit(-1)
+
+TARGET = 'rt-thread.' + rtconfig.TARGET_EXT
+
+DefaultEnvironment(tools=[])
+env = Environment(
+    tools=['mingw'],
+    AS=rtconfig.AS,
+    ASFLAGS=rtconfig.AFLAGS,
+    CC=rtconfig.CC,
+    CFLAGS=rtconfig.CFLAGS,
+    AR=rtconfig.AR,
+    ARFLAGS='-rc',
+    CXX=rtconfig.CXX,
+    CXXFLAGS=rtconfig.CXXFLAGS,
+    LINK=rtconfig.LINK,
+    LINKFLAGS=rtconfig.LFLAGS,
+)
+env.PrependENVPath('PATH', rtconfig.EXEC_PATH)
+env.AppendUnique(CPPPATH=[
+    os.path.abspath('../../libraries/components/mtb-srf/include'),
+    os.path.abspath('../../libraries/components/mtb-srf/include/COMPONENT_NON_SECURE_DEVICE'),
+    os.path.abspath('../../libraries/components/mtb-srf/include/COMPONENT_NON_SECURE_DEVICE/COMPONENT_MW_MTB_IPC'),
+    os.path.abspath('../../libraries/components/mtb-ipc/include'),
+    os.path.abspath('../../libraries/components/mtb-device-support-pse8xxgp/device-utils/syspm/include'),
+])
+
+Export('RTT_ROOT')
+Export('rtconfig')
+
+SDK_ROOT = os.path.abspath('.')
+SDK_LIB = os.path.abspath('../../libraries/components')
+Export('SDK_LIB')
+Export('env')
+
+objs = PrepareBuilding(env, RTT_ROOT, has_libcpu=False)
+rtconfig.BSP_LIBRARY_TYPE = 'Packages'
+
+if GetDepend(['BSP_RETRO_GO_GBA_DEEP_PROFILE']):
+    env.Append(LINKFLAGS=(
+        ' -Wl,--wrap=update_gba,--wrap=update_scanline,'
+        '--wrap=dma_transfer,--wrap=render_gbc_sound,'
+        '--wrap=load_gamepak_page'))
+
+if GetDepend(['BSP_RETRO_GO_GBA_FAST_RAM_WRITE_WRAPPER']):
+    env.Append(LINKFLAGS=(
+        ' -Wl,--wrap=write_memory8,--wrap=write_memory16,'
+        '--wrap=write_memory32'))
+
+
+def windows_spawn(shell, escape, command, args, process_env):
+    response_file = str(uuid.uuid4())
+    command_line = command + ' ' + ' '.join(args[1:])
+    if len(command_line) > 16 * 1024:
+        with open(response_file, 'w') as response:
+            response.write(' '.join(args[1:]).replace('\\', '/'))
+        command_line = command + ' @' + response_file
+    process = subprocess.Popen(
+        command_line,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        shell=False,
+        env=process_env,
+    )
+    output, errors = process.communicate()
+    result = process.wait()
+    if errors:
+        sys.stderr.write(errors.decode('UTF-8'))
+    if output:
+        sys.stdout.write(output.decode('UTF-8'))
+    if os.path.isfile(response_file):
+        os.remove(response_file)
+    return result
+
+
+if platform.system() == 'Windows':
+    env['SPAWN'] = windows_spawn
+
+env.VariantDir('build/libs', '../libs', duplicate=0)
+objs.extend(SConscript('../libs/SConscript', variant_dir='build/libs', duplicate=0))
+
+component_root = '../../libraries/components'
+env.VariantDir('build/libraries/components', component_root, duplicate=0)
+objs.extend(SConscript(component_root + '/Infineon_cmsis-latest/SConscript',
+                       variant_dir='build/libraries/components/Infineon_cmsis-latest', duplicate=0))
+objs.extend(SConscript(component_root + '/Infineon_core-lib-latest/SConscript',
+                       variant_dir='build/libraries/components/Infineon_core-lib-latest', duplicate=0))
+objs.extend(SConscript(component_root + '/mtb-device-support-pse8xxgp/hal/SConscript',
+                       variant_dir='build/libraries/components/mtb-device-support-pse8xxgp/hal', duplicate=0))
+objs.extend(SConscript(component_root + '/mtb-device-support-pse8xxgp/pdl/SConscript',
+                       variant_dir='build/libraries/components/mtb-device-support-pse8xxgp/pdl', duplicate=0))
+objs.extend(SConscript(component_root + '/async-transfer/SConscript',
+                       variant_dir='build/libraries/components/async-transfer', duplicate=0))
+if GetDepend(['BSP_RETRO_GO_AUDIO_BACKEND_RTTHREAD']):
+    objs.extend(SConscript(component_root + '/ASRC/SConscript',
+                           variant_dir='build/libraries/components/ASRC', duplicate=0))
+objs.extend(SConscript(component_root + '/SConscript',
+                       variant_dir='build/libraries/components', duplicate=0))
+objs.extend(SConscript('drivers/SConscript'))
+
+linker_script = 'link_itcm.ld' if GetDepend(['BSP_RETRO_GO_CORE_ITCM']) else 'link.ld'
+env.Depends(TARGET, os.path.join('board', 'linker_scripts', linker_script))
+DoBuilding(TARGET, objs)
