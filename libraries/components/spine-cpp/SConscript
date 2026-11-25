@@ -1,0 +1,10 @@
+import os
+
+from building import DefineGroup, GetCurrentDir, Glob
+
+cwd = GetCurrentDir()
+group = DefineGroup('Spine Runtime', Glob('src/spine/*.cpp'), depend=[''],
+                    CPPPATH=[os.path.join(cwd, 'include')],
+                    LOCAL_CPPDEFINES=['SPINE_NO_FILE_IO'])
+
+Return('group')

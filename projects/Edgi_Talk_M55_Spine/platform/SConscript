@@ -1,0 +1,48 @@
+from building import DefineGroup, GetCurrentDir, Glob
+Import('spine_model')
+
+sources = Glob('*.c') + Glob('spine_runtime.cpp')
+if spine_model == 'c012':
+    sources += Glob('assets/c012/*.c') + Glob('assets/c012/*.S')
+    Depends('assets/c012/c012_data.o', Glob('assets/c012/*.atlas') +
+            Glob('assets/c012/c012_demo.skel') + Glob('assets/c012/*.rle'))
+else:
+    sources += Glob('assets/spine_demo_asset.c')
+defines = [
+    'BLHS_SUPPORT',
+    'COMPONENT_55500',
+    'COMPONENT_55500A1',
+    'COMPONENT_APP_KIT_PSE84_EVAL_EPC2',
+    'COMPONENT_CM55',
+    'COMPONENT_CM55_0',
+    'COMPONENT_GCC_ARM',
+    'COMPONENT_GFXSS',
+    'COMPONENT_HARDFP',
+    'COMPONENT_MTB_DEVICE_SUPPORT',
+    'COMPONENT_MTB_HAL',
+    'COMPONENT_MW_ASYNC_TRANSFER',
+    'COMPONENT_MW_CMSIS',
+    'COMPONENT_MW_CORE_LIB',
+    'COMPONENT_MW_CORE_MAKE',
+    'COMPONENT_MW_RETARGET_IO',
+    'COMPONENT_NON_SECURE_DEVICE',
+    'COMPONENT_PSE84',
+    'COMPONENT_SM',
+    'CORE_NAME_CM55_0=1',
+    'CYBSP_MCUBOOT_HEADER_SIZE=0x400',
+    'CY_APPNAME_proj_cm55',
+    'CY_RETARGET_IO_CONVERT_LF_TO_CRLF',
+    'CY_SUPPORTS_DEVICE_VALIDATION',
+    'CY_TARGET_BOARD=APP_KIT_PSE84_EVAL_EPC2',
+    'PSE846GPS2DBZC4A',
+    'TARGET_APP_KIT_PSE84_EVAL_EPC2',
+    'TRXV5',
+    'CY_PDL_FLASH_BOOT',
+    'FLASH_BOOT',
+]
+if spine_model == 'c012':
+    defines.extend(['SPINE_RUNTIME_POOL_KIB=208', 'SPINE_FRAME_BUFFERS_SOCMEM'])
+
+group = DefineGroup('Spine PSE84 platform', sources, depend=[''],
+                    CPPPATH=[GetCurrentDir()], CPPDEFINES=defines)
+Return('group')

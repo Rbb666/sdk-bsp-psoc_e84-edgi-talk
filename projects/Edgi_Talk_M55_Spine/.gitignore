@@ -1,0 +1,11 @@
+/build/
+/.sconsign.dblite
+__pycache__/
+/rt-thread.elf
+/rtthread.hex
+/rtthread.map
+/platform/assets/c012/c012_00.skel
+/platform/assets/c012/c012_00_motion.skel
+/platform/assets/c012/c012_spine40_import.zip
+/platform/assets/c012/c012_demo_40.skel
+/platform/assets/c012/c012_00_motion_43.skel

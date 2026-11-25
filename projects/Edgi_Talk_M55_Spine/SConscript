@@ -1,0 +1,8 @@
+from building import DefineGroup, GetCurrentDir, Glob, SConscript
+import os
+
+platform = os.path.join(GetCurrentDir(), 'platform')
+src = Glob('main.c')
+group = DefineGroup('Spine demo', src, depend=[''], CPPPATH=[platform])
+group += SConscript('platform/SConscript')
+Return('group')

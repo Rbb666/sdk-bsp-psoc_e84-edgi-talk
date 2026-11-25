@@ -1,0 +1,82 @@
+import os
+import shutil
+import sys
+
+import rtconfig
+
+bsp_root = os.path.abspath('../..')
+RTT_ROOT = os.path.abspath(os.environ.get('RTT_ROOT', os.path.join(bsp_root, 'rt-thread')))
+SDK_LIB = os.path.join(bsp_root, 'libraries', 'components')
+sys.path.insert(0, os.path.join(RTT_ROOT, 'tools'))
+import building
+
+DefaultEnvironment(tools=[])
+env = Environment(tools=['mingw'], ENV=os.environ.copy(),
+                  AS=rtconfig.AS, ASFLAGS=rtconfig.AFLAGS,
+                  CC=rtconfig.CC, CFLAGS=rtconfig.CFLAGS,
+                  AR=rtconfig.AR, ARFLAGS='-rc',
+                  CXX=rtconfig.CXX, CXXFLAGS=rtconfig.CXXFLAGS,
+                  LINK=rtconfig.LINK, LINKFLAGS=rtconfig.LFLAGS)
+if rtconfig.EXEC_PATH:
+    env.PrependENVPath('PATH', rtconfig.EXEC_PATH)
+if not shutil.which(rtconfig.CC, path=env['ENV']['PATH']):
+    Exit('Arm GNU Toolchain not found. Set RTT_EXEC_PATH to its bin directory.')
+
+spine_model = ARGUMENTS.get('model', 'c012')
+if spine_model not in ('c012', 'orbit'):
+    Exit('Select model=c012 or model=orbit.')
+Export('RTT_ROOT', 'SDK_LIB', 'rtconfig', 'spine_model')
+objects = building.PrepareBuilding(env, RTT_ROOT, has_libcpu=False)
+
+# The CM55 port includes some CM33 sources by absolute path. Build their
+# objects here rather than in the shared RT-Thread source directory.
+m33_sources = os.path.normcase(os.path.join(RTT_ROOT, 'libcpu', 'arm', 'cortex-m33'))
+for index, source in enumerate(objects):
+    if os.path.normcase(os.path.dirname(source.abspath)) == m33_sources:
+        stem = os.path.splitext(source.name)[0]
+        target = os.path.join('build', 'kernel', 'libcpu', 'arm', 'cortex-m33', stem)
+        objects[index] = env.Object(target, source)[0]
+
+for directory in (
+    'projects/libs',
+    'libraries/HAL_Drivers',
+    'libraries/components/Infineon_cmsis-latest',
+    'libraries/components/Infineon_core-lib-latest',
+    'libraries/components/mtb-device-support-pse8xxgp/hal',
+    'libraries/components/mtb-device-support-pse8xxgp/device-utils/syspm',
+    'libraries/components/async-transfer',
+    'libraries/components/serial-memory',
+    'libraries/components/Infineon_retarget-io-latest',
+    'libraries/components/mtb-srf',
+    'libraries/components/mtb-ipc',
+    'libraries/components/spine-cpp',
+):
+    objects.extend(SConscript(os.path.join(bsp_root, directory, 'SConscript'),
+                              variant_dir=os.path.join('build', directory), duplicate=0))
+
+# Request the PDL graphics sources without enabling the shared LCD device.
+pdl = 'libraries/components/mtb-device-support-pse8xxgp/pdl'
+building.BuildOptions['BSP_USING_LCD'] = 1
+try:
+    pdl_sources = SConscript(os.path.join(bsp_root, pdl, 'SConscript'),
+                             variant_dir=os.path.join('build', pdl), duplicate=0)
+finally:
+    del building.BuildOptions['BSP_USING_LCD']
+objects.extend(pdl_sources)
+
+# Override cache maintenance in this VG-Lite translation unit only.
+vg_lite = next(source for source in pdl_sources if source.name == 'vg_lite.c')
+cache_header = 'platform/spine_vglite_cache.h'
+building.DefineGroup('Spine VG-Lite cache', [vg_lite], depend=[''],
+                     LOCAL_CFLAGS=' -include ' + cache_header)
+env.Depends(vg_lite.get_path()[:-2] + '.o', cache_header)
+
+panel = 'libraries/Common/board/ports/display_panels'
+env.VariantDir(os.path.join('build', panel), os.path.join(bsp_root, panel), duplicate=0)
+env.AppendUnique(CPPPATH=[os.path.join(bsp_root, panel)])
+objects.extend(env.Object([os.path.join('build', panel, source)
+                           for source in ('display_tl043wvv02.c', 'drv_touch.c')]))
+
+target = 'rt-thread.' + rtconfig.TARGET_EXT
+env.Depends(target, 'platform/linker_scripts/link.ld')
+building.DoBuilding(target, objects)
